@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'membership_application_page.dart';
+import 'application_status_page.dart'; // Ensure this file exists in your lib folder
 
 class MembershipPage extends StatelessWidget {
   const MembershipPage({Key? key}) : super(key: key);
@@ -7,7 +8,7 @@ class MembershipPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE6F2EE),
+      backgroundColor: const Color(0xFFE6F2EE), // Matching your light green theme
       appBar: AppBar(
         backgroundColor: const Color(0xFFE6F2EE),
         elevation: 0,
@@ -28,7 +29,6 @@ class MembershipPage extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-
             /// About Kudumbashree Card
             Container(
               padding: const EdgeInsets.all(16),
@@ -62,59 +62,89 @@ class MembershipPage extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            /// View Status Button
-            Container(
-              width: double.infinity,
-              height: 70,
-              decoration: BoxDecoration(
-                color: const Color(0xFFDCE6F8),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: TextButton(
-                onPressed: () {
-                  print("View Status Clicked");
-                },
-                child: const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "View Application Status\nCheck the status of your membership application",
-                    style: TextStyle(color: Colors.blue),
-                  ),
-                ),
-              ),
+            /// View Status Button - Navigates to ApplicationStatusPage
+            _buildActionCard(
+              context,
+              "View Application Status",
+              "Check the status of your membership application",
+              Colors.blue,
+              const Color(0xFFDCE6F8),
+              () {
+                // FIXED: Removed 'const' to prevent build error
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => ApplicationStatusPage()),
+                );
+              },
             ),
 
             const SizedBox(height: 20),
 
             /// Apply Button
-            Container(
-              width: double.infinity,
-              height: 70,
-              decoration: BoxDecoration(
-                color: const Color(0xFFDFF3E4),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: TextButton(
-                onPressed: () {
-                        Navigator.push(
-                                  context,
-                                MaterialPageRoute(
-                                  builder: (context) => const MembershipApplicationPage(),
-                                ),
-                              );
-                            },
-                            child: const Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                "Apply for Membership\nStart your application to join Kudumbashree",
-                                style: TextStyle(color: Colors.green),
-                              ),
-                            ),
-                          ),
-                       ),
-                    ],
+            _buildActionCard(
+              context,
+              "Apply for Membership",
+              "Start your application to join Kudumbashree",
+              Colors.green,
+              const Color(0xFFDFF3E4),
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MembershipApplicationPage(),
                   ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Helper to build the large action cards with subtitles
+  Widget _buildActionCard(
+    BuildContext context,
+    String title,
+    String subtitle,
+    Color color,
+    Color bgColor,
+    VoidCallback onTap,
+  ) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
                 ),
-              );
-           }
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: color.withOpacity(0.8),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
