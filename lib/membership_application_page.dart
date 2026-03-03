@@ -134,6 +134,7 @@ class _MembershipApplicationPageState
                       onPressed: () async {
                         if (_formKey.currentState!.validate()) {
                           try {
+                            print("Session: ${Supabase.instance.client.auth.currentSession}");
                             // 1. Generate the Short Code and ID
                             final panchayat = panchayatController.text.trim().toUpperCase();
                             String shortCode = panchayat.length >= 3 
