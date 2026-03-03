@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'inter_membership_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -190,24 +191,29 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           onPressed: () {
-                            print("Apply for membership clicked");
-                          },
-                          child: const Text(
-                            "Apply for Membership",
-                            style: TextStyle(color: Colors.green, fontSize: 16),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+                            Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                            builder: (context) => const MembershipPage(),
+                                            ),
+                                          );
+                                        },
+                                      child: const Text(
+                                          "Apply for Membership",
+                                          style: TextStyle(color: Colors.green, fontSize: 16),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
 
-              const SizedBox(height: 40),
-            ],
-          ),
-        ),
-      ),
-    );
+                            const SizedBox(height: 40),
+                         ],
+                        ),
+                     ),
+                    ),
+              );
   }
 }
