@@ -1,31 +1,29 @@
 import 'package:flutter/material.dart';
-import 'member.dart'; // Ensure this points to your updated Member model class
+import 'pending_requests_page.dart';
 
-class MemberDashboard extends StatelessWidget {
-  final Member member; // Receives the logged-in member's data
+class SecretaryDashboard extends StatelessWidget {
+  final Map<String, dynamic> userData;
 
-  const MemberDashboard({Key? key, required this.member}) : super(key: key);
+  const SecretaryDashboard({super.key, required this.userData});
 
   @override
   Widget build(BuildContext context) {
-    // Safely extract data with fallbacks
-    final String name = member.fullName ?? 'Member';
-    final String userId = member.userId ?? 'N/A';
-    final String role = 'Member'; // Hardcoded to fix the getter error
-    
-    // Placeholders for now. You can add these to your Member class later!
-    final String unit = 'Unit 4'; 
-    final String ward = 'Ward 2'; 
+    // Safely extract dynamic data
+    final String name = userData['full_name'] ?? 'Secretary';
+    final String aadhar = userData['aadhar_number']?.toString() ?? 'N/A';
+    final String unit = userData['unit_number']?.toString() ?? 'N/A';
+    // Checking both 'ward' and 'ward_number' just in case of DB variations
+    final String ward = (userData['ward'] ?? userData['ward_number'])?.toString() ?? 'N/A';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F6), // Clean modern background
       appBar: AppBar(
-        title: const Text('Member Dashboard', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('NHG Dashboard', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.teal,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      drawer: _buildDrawer(context, name, member.photoUrl),
+      drawer: _buildDrawer(context, name),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -46,7 +44,7 @@ class MemberDashboard extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Floating Profile Card
+                // Profile Card
                 Padding(
                   padding: const EdgeInsets.only(top: 40, left: 20, right: 20),
                   child: Container(
@@ -62,16 +60,10 @@ class MemberDashboard extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            // UPDATED: Now displays the real photo from Supabase!
-                            CircleAvatar(
-                              radius: 32,
-                              backgroundColor: const Color(0xFFE0F2F1),
-                              backgroundImage: (member.photoUrl != null && member.photoUrl!.isNotEmpty) 
-                                  ? NetworkImage(member.photoUrl!) 
-                                  : null,
-                              child: (member.photoUrl == null || member.photoUrl!.isEmpty) 
-                                  ? const Icon(Icons.person, size: 35, color: Colors.teal) 
-                                  : null,
+                            const CircleAvatar(
+                              radius: 30,
+                              backgroundColor: Color(0xFFE0F2F1),
+                              child: Icon(Icons.person, size: 35, color: Colors.teal),
                             ),
                             const SizedBox(width: 15),
                             Expanded(
@@ -80,7 +72,7 @@ class MemberDashboard extends StatelessWidget {
                                 children: [
                                   Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
                                   const SizedBox(height: 4),
-                                  Text('ID: $userId', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                                  Text('ID: $aadhar', style: const TextStyle(color: Colors.grey, fontSize: 13)),
                                 ],
                               ),
                             ),
@@ -91,10 +83,10 @@ class MemberDashboard extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
                             _buildInfoChip(Icons.home_work, "Unit", unit),
-                            Container(width: 1, height: 30, color: Colors.grey[300]),
+                            Container(width: 1, height: 30, color: Colors.grey[300]), // Divider
                             _buildInfoChip(Icons.map, "Ward", ward),
-                            Container(width: 1, height: 30, color: Colors.grey[300]),
-                            _buildInfoChip(Icons.star, "Role", role),
+                            Container(width: 1, height: 30, color: Colors.grey[300]), // Divider
+                            _buildInfoChip(Icons.star, "Role", "Secretary"),
                           ],
                         ),
                       ],
@@ -109,7 +101,7 @@ class MemberDashboard extends StatelessWidget {
             // Quick Actions Section
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+              child: Text("Primary Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
             ),
             const SizedBox(height: 15),
             Padding(
@@ -119,11 +111,14 @@ class MemberDashboard extends StatelessWidget {
                   Expanded(
                     child: _buildQuickActionCard(
                       context,
-                      title: 'My Passbook',
-                      icon: Icons.menu_book,
+                      title: 'Member Requests',
+                      icon: Icons.person_add_alt_1,
                       color: Colors.blue,
                       onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Passbook Coming Soon")));
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => PendingRequestsPage(unitNumber: userData['unit_number'])),
+                        );
                       },
                     ),
                   ),
@@ -131,11 +126,11 @@ class MemberDashboard extends StatelessWidget {
                   Expanded(
                     child: _buildQuickActionCard(
                       context,
-                      title: 'Apply for Loan',
-                      icon: Icons.account_balance_wallet,
+                      title: 'Unit Complaints',
+                      icon: Icons.report_problem,
                       color: Colors.orange,
                       onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Loan Application Coming Soon")));
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Complaints Module Coming Soon")));
                       },
                     ),
                   ),
@@ -148,7 +143,7 @@ class MemberDashboard extends StatelessWidget {
             // Grid Section
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text("My Services", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+              child: Text("Management", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
             ),
             const SizedBox(height: 15),
             Padding(
@@ -156,19 +151,19 @@ class MemberDashboard extends StatelessWidget {
               child: GridView.count(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 3, 
+                crossAxisCount: 3, // 3 columns look very modern for small icons
                 crossAxisSpacing: 15,
                 mainAxisSpacing: 15,
                 childAspectRatio: 0.9,
                 children: [
-                  _buildModernGridItem('Meetings', Icons.groups, Colors.indigo),
-                  _buildModernGridItem('Savings', Icons.savings, Colors.teal),
-                  _buildModernGridItem('My Loans', Icons.monetization_on, Colors.green),
+                  _buildModernGridItem('Meetings', Icons.calendar_month, Colors.deepPurple),
+                  _buildModernGridItem('Members', Icons.groups, Colors.indigo),
+                  _buildModernGridItem('Reports', Icons.analytics, Colors.teal),
+                  _buildModernGridItem('Loans', Icons.account_balance_wallet, Colors.green),
                   _buildModernGridItem('Schemes', Icons.account_balance, Colors.blue),
                   _buildModernGridItem('Trainings', Icons.school, Colors.orange),
-                  _buildModernGridItem('Complaints', Icons.report_problem, Colors.redAccent),
-                  _buildModernGridItem('Elections', Icons.how_to_reg, Colors.purple),
-                  _buildModernGridItem('Profile', Icons.person, Colors.pink),
+                  _buildModernGridItem('Savings', Icons.savings, Colors.pink),
+                  _buildModernGridItem('Elections', Icons.how_to_reg, Colors.redAccent),
                   _buildModernGridItem('Settings', Icons.settings, Colors.grey),
                 ],
               ),
@@ -180,8 +175,8 @@ class MemberDashboard extends StatelessWidget {
     );
   }
 
-  /// Helper to build the Drawer (Updated to show the photo here too)
-  Widget _buildDrawer(BuildContext context, String name, String? photoUrl) {
+  /// Helper to build the Drawer
+  Widget _buildDrawer(BuildContext context, String name) {
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -189,15 +184,10 @@ class MemberDashboard extends StatelessWidget {
           UserAccountsDrawerHeader(
             decoration: const BoxDecoration(color: Colors.teal),
             accountName: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            accountEmail: const Text("Kudumbashree Member"),
-            currentAccountPicture: CircleAvatar(
+            accountEmail: const Text("NHG Secretary"),
+            currentAccountPicture: const CircleAvatar(
               backgroundColor: Colors.white,
-              backgroundImage: (photoUrl != null && photoUrl.isNotEmpty) 
-                  ? NetworkImage(photoUrl) 
-                  : null,
-              child: (photoUrl == null || photoUrl.isEmpty) 
-                  ? const Icon(Icons.person, size: 40, color: Colors.teal) 
-                  : null,
+              child: Icon(Icons.person, size: 40, color: Colors.teal),
             ),
           ),
           ListTile(
@@ -215,7 +205,7 @@ class MemberDashboard extends StatelessWidget {
     );
   }
 
-  /// Helper for the Unit, Ward, and Role chips inside the profile card
+  /// Helper for the Unit and Ward chips inside the profile card
   Widget _buildInfoChip(IconData icon, String label, String value) {
     return Column(
       children: [
@@ -232,7 +222,7 @@ class MemberDashboard extends StatelessWidget {
     );
   }
 
-  /// Helper for the large Quick Action buttons
+  /// Helper for the large Quick Action buttons (Requests & Complaints)
   Widget _buildQuickActionCard(BuildContext context, {required String title, required IconData icon, required Color color, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,

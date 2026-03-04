@@ -1,31 +1,38 @@
 class Member {
-  final String id;
-  final String fullName;
-  final String userId;
-  final String nhgUnit;
-  final String ward;
-  final String panchayat;
-  final int attendance;
+  final String? userId;
+  final String? fullName;
+  final String? password;
+  final String? photoUrl;
+  final String? role;
 
   Member({
-    required this.id,
-    required this.fullName,
-    required this.userId,
-    required this.nhgUnit,
-    required this.ward,
-    required this.panchayat,
-    this.attendance = 0,
+    this.userId,
+    this.fullName,
+    this.password,
+    this.photoUrl,
+    this.role,
   });
 
+  // This factory constructor takes the raw data from your Supabase database 
+  // and converts it into a neat Flutter object.
   factory Member.fromMap(Map<String, dynamic> map) {
     return Member(
-      id: map['id']?.toString() ?? '',
-      fullName: map['full_name'] ?? 'No Name',
-      userId: map['user_id'] ?? '',
-      nhgUnit: map['nhg_unit'] ?? 'Not Assigned',
-      ward: map['ward']?.toString() ?? 'N/A',
-      panchayat: map['panchayat'] ?? 'N/A',
-      attendance: map['attendance'] ?? 0,
+      userId: map['user_id']?.toString(),
+      fullName: map['full_name']?.toString(),
+      password: map['password']?.toString(),
+      photoUrl: map['photo_url']?.toString(), // Fetches the image link!
+      role: map['role']?.toString() ?? 'Member', // Defaults to 'Member' if blank
     );
+  }
+
+  // (Optional) Useful if you ever need to update the user's details back to Supabase
+  Map<String, dynamic> toMap() {
+    return {
+      'user_id': userId,
+      'full_name': fullName,
+      'password': password,
+      'photo_url': photoUrl,
+      'role': role,
+    };
   }
 }

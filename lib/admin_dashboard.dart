@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'admin_complaints_page.dart'; // Add this
+import 'dashboard_pages.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({super.key});
@@ -19,11 +21,11 @@ class AdminDashboard extends StatelessWidget {
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
           children: [
-            _buildAdminCard(context, "Manage Complaints", Icons.feedback, Colors.orange, const AdminComplaintsPage()),
-            _buildAdminCard(context, "Pending Requests", Icons.person_add, Colors.blue, const PlaceholderPage(title: "Member Requests")),
-            _buildAdminCard(context, "Loan Approvals", Icons.account_balance, Colors.green, const PlaceholderPage(title: "Loans")),
-            _buildAdminCard(context, "System Settings", Icons.settings, Colors.grey, const PlaceholderPage(title: "Settings")),
-          ],
+  _buildAdminCard(context, "Manage Complaints", Icons.feedback, Colors.orange, AdminComplaintsPage()),
+  _buildAdminCard(context, "Pending Requests", Icons.person_add, Colors.blue, PlaceholderPage(title: "Member Requests")),
+  _buildAdminCard(context, "Loan Approvals", Icons.account_balance, Colors.green, PlaceholderPage(title: "Loans")),
+  _buildAdminCard(context, "System Settings", Icons.settings, Colors.grey, PlaceholderPage(title: "Settings")),
+],
         ),
       ),
     );
