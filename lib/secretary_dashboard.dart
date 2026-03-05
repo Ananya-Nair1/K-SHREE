@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'pending_requests_page.dart';
 import 'meeting_management.dart'; 
-import 'unit_members_page.dart'; // <-- 1. Added this import
+import 'unit_members_page.dart';
+// ADD THIS IMPORT: Make sure this points to your actual login page file
+import 'login_page.dart'; 
 
 class SecretaryDashboard extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -169,7 +171,6 @@ class SecretaryDashboard extends StatelessWidget {
                       );
                     },
                   ),
-                  // <-- 2. Updated the Members button with onTap navigation
                   _buildModernGridItem(
                     'Members', 
                     Icons.groups, 
@@ -221,7 +222,14 @@ class SecretaryDashboard extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
             title: const Text('Logout', style: TextStyle(color: Colors.red)),
-            onTap: () => Navigator.of(context).popUntil((route) => route.isFirst),
+            onTap: () {
+              // UPDATED: Completely clears the navigation stack and sends user to Login Page
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginPage()), // Make sure your login class is named LoginPage
+                (Route<dynamic> route) => false,
+              );
+            },
           ),
         ],
       ),

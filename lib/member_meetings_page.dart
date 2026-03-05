@@ -1,40 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class MemberMeetingsPage extends StatelessWidget {
-  final Map<String, dynamic> memberData;
+class MemberMeetingsPage extends StatefulWidget {
+  final String unitNumber; 
 
-  const MemberMeetingsPage({Key? key, required this.memberData}) : super(key: key);
+  const MemberMeetingsPage({Key? key, required this.unitNumber}) : super(key: key);
+
+  @override
+  State<MemberMeetingsPage> createState() => _MemberMeetingsPageState();
+}
+
+class _MemberMeetingsPageState extends State<MemberMeetingsPage> {
+  final supabase = Supabase.instance.client;
 
   @override
   Widget build(BuildContext context) {
-    final supabase = Supabase.instance.client;
-    // Uses the actual unit_name passed from the Dashboard
-    final String memberUnit = memberData['unit_name']?.toString() ?? '';
-
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F6),
       appBar: AppBar(
-        title: const Text("Unit Meetings", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.teal, elevation: 0, iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('Upcoming Meetings', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.teal,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        // Filters meetings strictly by the member's unit_name
-        future: supabase.from('meetings').select().eq('unit_name', memberUnit).order('meeting_date', ascending: true), 
+      body: FutureBuilder(
+        future: supabase
+            .from('meetings')
+            .select()
+            .eq('unit_name', widget.unitNumber) 
+            .order('meeting_date', ascending: true), 
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: Colors.teal));
-          if (snapshot.hasError) return Center(child: Text("Error loading meetings: ${snapshot.error}"));
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: Colors.teal));
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
+          }
 
-          final meetings = snapshot.data ?? [];
+          final meetings = snapshot.data as List<dynamic>? ?? [];
 
           if (meetings.isEmpty) {
-            return Center(
+            return const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.event_busy, size: 80, color: Colors.grey[400]),
-                  const SizedBox(height: 16),
-                  Text("No upcoming meetings for $memberUnit", style: TextStyle(color: Colors.grey[600], fontSize: 16)),
+                  Icon(Icons.event_busy, size: 60, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text("No upcoming meetings scheduled.", style: TextStyle(fontSize: 16, color: Colors.blueGrey)),
                 ],
               ),
             );
@@ -44,47 +56,8 @@ class MemberMeetingsPage extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             itemCount: meetings.length,
             itemBuilder: (context, index) {
-              final meet = meetings[index];
-              
-              DateTime meetDate;
-              try { meetDate = DateTime.parse(meet['meeting_date']); } 
-              catch (e) { meetDate = DateTime.now(); }
-              
-              final String displayDate = "${meetDate.day.toString().padLeft(2, '0')}-${meetDate.month.toString().padLeft(2, '0')}-${meetDate.year}";
-
-              return Card(
-                elevation: 3, shadowColor: Colors.black12, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), margin: const EdgeInsets.only(bottom: 16),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.teal.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.calendar_month, color: Colors.teal)),
-                              const SizedBox(width: 12),
-                              Text(displayDate, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-                            ],
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.green[200]!)),
-                            child: Text(meet['status'].toString().toUpperCase(), style: TextStyle(color: Colors.green[700], fontSize: 10, fontWeight: FontWeight.bold)),
-                          )
-                        ],
-                      ),
-                      const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1)),
-                      _buildMeetingDetailRow(Icons.access_time, "Time", meet['meeting_time']),
-                      const SizedBox(height: 8),
-                      _buildMeetingDetailRow(Icons.location_on, "Venue", meet['venue']),
-                      const SizedBox(height: 8),
-                      _buildMeetingDetailRow(Icons.info_outline, "Purpose", meet['reason']),
-                    ],
-                  ),
-                ),
-              );
+              final meeting = meetings[index];
+              return _buildMeetingCard(meeting);
             },
           );
         },
@@ -92,18 +65,89 @@ class MemberMeetingsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildMeetingDetailRow(IconData icon, String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 16, color: Colors.grey[500]),
-        const SizedBox(width: 8),
-        Expanded(
-          child: RichText(
-            text: TextSpan(children: [TextSpan(text: "$label: ", style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold, fontSize: 13)), TextSpan(text: value, style: const TextStyle(color: Colors.black87, fontSize: 14))]),
-          ),
+  Widget _buildMeetingCard(Map<String, dynamic> meeting) {
+    // Dynamic status color based on your DB 'status' column
+    final isScheduled = meeting['status'] == 'scheduled';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.indigo.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.groups, color: Colors.indigo, size: 24),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(meeting['meeting_level'] ?? 'NHG Meeting', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                      const SizedBox(height: 4),
+                      // UPDATED: Now fetches the 'reason' from your database!
+                      Text(meeting['reason'] ?? 'No specific agenda provided', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                    ],
+                  ),
+                ),
+                // NEW: Status Badge
+                if (meeting['status'] != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isScheduled ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      meeting['status'].toString().toUpperCase(),
+                      style: TextStyle(
+                        color: isScheduled ? Colors.green : Colors.orange,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const Divider(height: 30),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today, size: 16, color: Colors.teal),
+                const SizedBox(width: 8),
+                Text(meeting['meeting_date'] ?? 'TBA', style: const TextStyle(fontWeight: FontWeight.bold)),
+                const Spacer(),
+                const Icon(Icons.access_time, size: 16, color: Colors.orange),
+                const SizedBox(width: 8),
+                Text(meeting['meeting_time'] ?? 'TBA', style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(Icons.location_on, size: 16, color: Colors.redAccent),
+                const SizedBox(width: 8),
+                Expanded(child: Text(meeting['venue'] ?? 'Location TBA', style: const TextStyle(color: Colors.blueGrey))),
+              ],
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

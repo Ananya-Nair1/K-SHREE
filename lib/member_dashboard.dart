@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'member.dart'; // Ensure this points to your updated Member model class
+import 'member.dart'; 
+import 'member_meetings_page.dart';
+// ADD THIS IMPORT: Make sure this points to your actual login page file
+import 'login_page.dart'; 
 
 class MemberDashboard extends StatelessWidget {
   final Member member; // Receives the logged-in member's data
@@ -11,14 +14,13 @@ class MemberDashboard extends StatelessWidget {
     // Safely extract data with fallbacks
     final String name = member.fullName ?? 'Member';
     final String userId = member.userId ?? 'N/A';
-    final String role = 'Member'; // Hardcoded to fix the getter error
+    final String role = 'Member'; 
     
-    // Placeholders for now. You can add these to your Member class later!
-    final String unit = 'Unit 4'; 
+    final String unit = '4'; 
     final String ward = 'Ward 2'; 
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F6), // Clean modern background
+      backgroundColor: const Color(0xFFF4F7F6), 
       appBar: AppBar(
         title: const Text('Member Dashboard', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.teal,
@@ -30,11 +32,9 @@ class MemberDashboard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Header with overlapping Profile Card
             Stack(
               clipBehavior: Clip.none,
               children: [
-                // Curved Teal Background
                 Container(
                   height: 120,
                   width: double.infinity,
@@ -46,7 +46,6 @@ class MemberDashboard extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Floating Profile Card
                 Padding(
                   padding: const EdgeInsets.only(top: 40, left: 20, right: 20),
                   child: Container(
@@ -62,7 +61,6 @@ class MemberDashboard extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            // UPDATED: Now displays the real photo from Supabase!
                             CircleAvatar(
                               radius: 32,
                               backgroundColor: const Color(0xFFE0F2F1),
@@ -106,7 +104,6 @@ class MemberDashboard extends StatelessWidget {
 
             const SizedBox(height: 30),
 
-            // Quick Actions Section
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
               child: Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
@@ -145,7 +142,6 @@ class MemberDashboard extends StatelessWidget {
 
             const SizedBox(height: 30),
 
-            // Grid Section
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
               child: Text("My Services", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
@@ -161,15 +157,20 @@ class MemberDashboard extends StatelessWidget {
                 mainAxisSpacing: 15,
                 childAspectRatio: 0.9,
                 children: [
-                  _buildModernGridItem('Meetings', Icons.groups, Colors.indigo),
-                  _buildModernGridItem('Savings', Icons.savings, Colors.teal),
-                  _buildModernGridItem('My Loans', Icons.monetization_on, Colors.green),
-                  _buildModernGridItem('Schemes', Icons.account_balance, Colors.blue),
-                  _buildModernGridItem('Trainings', Icons.school, Colors.orange),
-                  _buildModernGridItem('Complaints', Icons.report_problem, Colors.redAccent),
-                  _buildModernGridItem('Elections', Icons.how_to_reg, Colors.purple),
-                  _buildModernGridItem('Profile', Icons.person, Colors.pink),
-                  _buildModernGridItem('Settings', Icons.settings, Colors.grey),
+                  _buildModernGridItem(context, 'Meetings', Icons.groups, Colors.indigo, onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => MemberMeetingsPage(unitNumber: unit)),
+                    );
+                  }),
+                  _buildModernGridItem(context, 'Savings', Icons.savings, Colors.teal),
+                  _buildModernGridItem(context, 'My Loans', Icons.monetization_on, Colors.green),
+                  _buildModernGridItem(context, 'Schemes', Icons.account_balance, Colors.blue),
+                  _buildModernGridItem(context, 'Trainings', Icons.school, Colors.orange),
+                  _buildModernGridItem(context, 'Complaints', Icons.report_problem, Colors.redAccent),
+                  _buildModernGridItem(context, 'Elections', Icons.how_to_reg, Colors.purple),
+                  _buildModernGridItem(context, 'Profile', Icons.person, Colors.pink),
+                  _buildModernGridItem(context, 'Settings', Icons.settings, Colors.grey),
                 ],
               ),
             ),
@@ -180,7 +181,6 @@ class MemberDashboard extends StatelessWidget {
     );
   }
 
-  /// Helper to build the Drawer (Updated to show the photo here too)
   Widget _buildDrawer(BuildContext context, String name, String? photoUrl) {
     return Drawer(
       child: ListView(
@@ -208,14 +208,20 @@ class MemberDashboard extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
             title: const Text('Logout', style: TextStyle(color: Colors.red)),
-            onTap: () => Navigator.of(context).popUntil((route) => route.isFirst),
+            onTap: () {
+              // UPDATED: Completely clears the navigation stack and sends user to Login Page
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginPage()), // Make sure your login class is named LoginPage
+                (Route<dynamic> route) => false,
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  /// Helper for the Unit, Ward, and Role chips inside the profile card
   Widget _buildInfoChip(IconData icon, String label, String value) {
     return Column(
       children: [
@@ -232,7 +238,6 @@ class MemberDashboard extends StatelessWidget {
     );
   }
 
-  /// Helper for the large Quick Action buttons
   Widget _buildQuickActionCard(BuildContext context, {required String title, required IconData icon, required Color color, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
@@ -256,8 +261,7 @@ class MemberDashboard extends StatelessWidget {
     );
   }
 
-  /// Helper for the clean grid items
-  Widget _buildModernGridItem(String title, IconData icon, Color color) {
+  Widget _buildModernGridItem(BuildContext context, String title, IconData icon, Color color, {VoidCallback? onTap}) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -268,7 +272,7 @@ class MemberDashboard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () {}, // Action for grid items goes here
+          onTap: onTap ?? () {}, 
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
