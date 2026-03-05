@@ -3,8 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'member.dart'; 
 import 'member_dashboard.dart';
 import 'admin_dashboard.dart'; 
-import 'secretary_dashboard.dart'; // Friend's new dashboard
+import 'secretary_dashboard.dart'; 
 import 'inter_membership_page.dart';
+import 'ads_chairperson_dashboard.dart'; // 1. Added import for ADS Dashboard
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -19,44 +20,49 @@ class _LoginPageState extends State<LoginPage> {
   String? selectedRole;
   bool _isLoading = false;
 
-  // Merged roles list including the new "NHG_SECRETARY"
   final List<String> roles = [
     "Member", 
     "NHG_SECRETARY", 
     "ADS Member", 
-    "ADS Chairperson", 
+    "ADS_Chairperson", // Matches the role in your login logic
     "CDS Member", 
     "CDS Chairperson"
   ];
 
-  /// Handles login routing based on the selected role
   Future<void> _attemptLogin() async {
     setState(() => _isLoading = true);
     try {
-      if (selectedRole == 'NHG_SECRETARY') {
-        // Friend's Logic: Query for Secretary
+      // 2. Logic for roles stored in 'Registered_Members' table (Secretary and ADS Chairperson)
+      if (selectedRole == 'NHG_SECRETARY' || selectedRole == 'ADS_Chairperson') {
         final response = await Supabase.instance.client
             .from('Registered_Members')
             .select()
-            .eq('aadhar_number', userIdController.text.trim()) // Secretary uses Aadhar
+            .eq('aadhar_number', userIdController.text.trim())
             .eq('password', passwordController.text.trim())
-            .eq('designation', 'NHG_SECRETARY')
+            .eq('designation', selectedRole!)
             .maybeSingle();
 
         if (response != null && mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => SecretaryDashboard(userData: response)),
-          );
+          if (selectedRole == 'NHG_SECRETARY') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => SecretaryDashboard(userData: response)),
+            );
+          } else if (selectedRole == 'ADS_Chairperson') {
+            // 3. Navigation to your new ADS Chairperson Dashboard
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => ADSChairpersonDashboard(userData: response)),
+            );
+          }
         } else {
-          _showErrorDialog("Invalid Secretary Credentials. Please check your Aadhar and password.");
+          _showErrorDialog("Invalid $selectedRole Credentials. Please check your Aadhar and password.");
         }
       } else {
-        // Original Logic: Query for Members & Admins
+        // 4. Original Logic for general Members & Admins stored in 'members' table
         final response = await Supabase.instance.client
-            .from('members')
-            .select()
-            .eq('user_id', userIdController.text.trim())
+            .from('Registered_Members').select()
+            .eq('aadhar_number', userIdController.text.trim())
             .eq('password', passwordController.text.trim())
             .maybeSingle();
 
@@ -68,7 +74,6 @@ class _LoginPageState extends State<LoginPage> {
               MaterialPageRoute(builder: (context) => MemberDashboard(member: member)),
             );
           } else {
-            // Redirects to Admin Panel for ADS/CDS roles
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const AdminDashboard()),
@@ -108,7 +113,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE6F2EE), // Light background theme
+      backgroundColor: const Color(0xFFE6F2EE),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -116,12 +121,10 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               const Text("K-SHREE", 
                 style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.teal, letterSpacing: 2)),
-              // Friend's added subtitle
               const Text("Kudumbashree Management System", 
                 style: TextStyle(fontSize: 16, color: Colors.black54)),
               const SizedBox(height: 30),
               
-              /// White Box Container for Login Fields
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
@@ -161,7 +164,6 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: userIdController, 
-                        keyboardType: TextInputType.text, // Kept text to support standard User IDs
                         decoration: _inputDecoration("Enter ID or Aadhar", Icons.person),
                         validator: (v) => v!.isEmpty ? "Required" : null,
                       ),
@@ -211,7 +213,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  /// Helper for consistent input styling
   InputDecoration _inputDecoration(String hint, IconData icon) {
     return InputDecoration(
       hintText: hint,

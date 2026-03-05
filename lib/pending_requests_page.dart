@@ -21,12 +21,12 @@ class _PendingRequestsPageState extends State<PendingRequestsPage> {
       );
 
       // 1. UPDATED: Added onConflict to safely tell Supabase how to handle duplicates
-      await supabase.from('members').upsert({
-        'user_id': item['aadhar_number']?.toString(), // Aadhar becomes their User ID
+      await supabase.from('Registered_Members').upsert({
+        'aadhar_number': item['aadhar_number']?.toString(), // Aadhar becomes their User ID
         'password': item['password'],                 // Keeps the password they created
         'full_name': item['full_name'],
         'photo_url': item['photo_url'],               // Includes photo for Member Dashboard
-      }, onConflict: 'user_id'); // <--- THE MAGIC FIX
+      }, onConflict: 'aadhar_number'); // <--- THE MAGIC FIX
 
       // 2. UPDATED: Added onConflict here too just to be 100% safe
       final Map<String, dynamic> insertData = {

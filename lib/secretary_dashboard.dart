@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'pending_requests_page.dart';
+import 'meeting_management.dart'; 
+import 'unit_members_page.dart'; // <-- 1. Added this import
 
 class SecretaryDashboard extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -151,13 +153,34 @@ class SecretaryDashboard extends StatelessWidget {
               child: GridView.count(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 3, // 3 columns look very modern for small icons
+                crossAxisCount: 3, 
                 crossAxisSpacing: 15,
                 mainAxisSpacing: 15,
                 childAspectRatio: 0.9,
                 children: [
-                  _buildModernGridItem('Meetings', Icons.calendar_month, Colors.deepPurple),
-                  _buildModernGridItem('Members', Icons.groups, Colors.indigo),
+                  _buildModernGridItem(
+                    'Meetings', 
+                    Icons.calendar_month, 
+                    Colors.deepPurple,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => MeetingManagementScreen(userData: userData)),
+                      );
+                    },
+                  ),
+                  // <-- 2. Updated the Members button with onTap navigation
+                  _buildModernGridItem(
+                    'Members', 
+                    Icons.groups, 
+                    Colors.indigo,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => UnitMembersPage(secretaryData: userData)),
+                      );
+                    },
+                  ),
                   _buildModernGridItem('Reports', Icons.analytics, Colors.teal),
                   _buildModernGridItem('Loans', Icons.account_balance_wallet, Colors.green),
                   _buildModernGridItem('Schemes', Icons.account_balance, Colors.blue),
@@ -247,7 +270,7 @@ class SecretaryDashboard extends StatelessWidget {
   }
 
   /// Helper for the clean grid items
-  Widget _buildModernGridItem(String title, IconData icon, Color color) {
+  Widget _buildModernGridItem(String title, IconData icon, Color color, {VoidCallback? onTap}) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -258,7 +281,7 @@ class SecretaryDashboard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () {}, // Action for grid items goes here
+          onTap: onTap, 
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
