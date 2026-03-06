@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import 'pending_requests_page.dart';
 import 'meeting_management.dart'; 
 import 'unit_members_page.dart';
-// ADD THIS IMPORT: Make sure this points to your actual login page file
 import 'login_page.dart'; 
+// import 'secretary_loans_page.dart'; // Create this next!
 
 class SecretaryDashboard extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -12,15 +15,13 @@ class SecretaryDashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Safely extract dynamic data
     final String name = userData['full_name'] ?? 'Secretary';
     final String aadhar = userData['aadhar_number']?.toString() ?? 'N/A';
     final String unit = userData['unit_number']?.toString() ?? 'N/A';
-    // Checking both 'ward' and 'ward_number' just in case of DB variations
     final String ward = (userData['ward'] ?? userData['ward_number'])?.toString() ?? 'N/A';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F6), // Clean modern background
+      backgroundColor: const Color(0xFFF4F7F6),
       appBar: AppBar(
         title: const Text('NHG Dashboard', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.teal,
@@ -32,11 +33,9 @@ class SecretaryDashboard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Header with overlapping Profile Card
             Stack(
               clipBehavior: Clip.none,
               children: [
-                // Curved Teal Background
                 Container(
                   height: 120,
                   width: double.infinity,
@@ -48,7 +47,6 @@ class SecretaryDashboard extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Profile Card
                 Padding(
                   padding: const EdgeInsets.only(top: 40, left: 20, right: 20),
                   child: Container(
@@ -67,7 +65,7 @@ class SecretaryDashboard extends StatelessWidget {
                             const CircleAvatar(
                               radius: 30,
                               backgroundColor: Color(0xFFE0F2F1),
-                              child: Icon(Icons.person, size: 35, color: Colors.teal),
+                              child: Icon(Icons.admin_panel_settings, size: 35, color: Colors.teal),
                             ),
                             const SizedBox(width: 15),
                             Expanded(
@@ -87,9 +85,9 @@ class SecretaryDashboard extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
                             _buildInfoChip(Icons.home_work, "Unit", unit),
-                            Container(width: 1, height: 30, color: Colors.grey[300]), // Divider
+                            Container(width: 1, height: 30, color: Colors.grey[300]),
                             _buildInfoChip(Icons.map, "Ward", ward),
-                            Container(width: 1, height: 30, color: Colors.grey[300]), // Divider
+                            Container(width: 1, height: 30, color: Colors.grey[300]),
                             _buildInfoChip(Icons.star, "Role", "Secretary"),
                           ],
                         ),
@@ -102,7 +100,6 @@ class SecretaryDashboard extends StatelessWidget {
 
             const SizedBox(height: 30),
 
-            // Quick Actions Section
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
               child: Text("Primary Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
@@ -134,6 +131,7 @@ class SecretaryDashboard extends StatelessWidget {
                       icon: Icons.report_problem,
                       color: Colors.orange,
                       onTap: () {
+                        // TODO: Route to UnitGrievanceManagementPage
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Complaints Module Coming Soon")));
                       },
                     ),
@@ -144,7 +142,6 @@ class SecretaryDashboard extends StatelessWidget {
 
             const SizedBox(height: 30),
 
-            // Grid Section
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
               child: Text("Management", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
@@ -183,7 +180,15 @@ class SecretaryDashboard extends StatelessWidget {
                     },
                   ),
                   _buildModernGridItem('Reports', Icons.analytics, Colors.teal),
-                  _buildModernGridItem('Loans', Icons.account_balance_wallet, Colors.green),
+                  _buildModernGridItem(
+                    'Loans', 
+                    Icons.account_balance_wallet, 
+                    Colors.green,
+                    onTap: () {
+                      // UPDATED: Route to the Loan Approval/Agenda page
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Loan Agenda View Coming Next!")));
+                    },
+                  ),
                   _buildModernGridItem('Schemes', Icons.account_balance, Colors.blue),
                   _buildModernGridItem('Trainings', Icons.school, Colors.orange),
                   _buildModernGridItem('Savings', Icons.savings, Colors.pink),
@@ -199,7 +204,6 @@ class SecretaryDashboard extends StatelessWidget {
     );
   }
 
-  /// Helper to build the Drawer
   Widget _buildDrawer(BuildContext context, String name) {
     return Drawer(
       child: ListView(
@@ -211,7 +215,7 @@ class SecretaryDashboard extends StatelessWidget {
             accountEmail: const Text("NHG Secretary"),
             currentAccountPicture: const CircleAvatar(
               backgroundColor: Colors.white,
-              child: Icon(Icons.person, size: 40, color: Colors.teal),
+              child: Icon(Icons.admin_panel_settings, size: 40, color: Colors.teal),
             ),
           ),
           ListTile(
@@ -222,13 +226,21 @@ class SecretaryDashboard extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
             title: const Text('Logout', style: TextStyle(color: Colors.red)),
-            onTap: () {
-              // UPDATED: Completely clears the navigation stack and sends user to Login Page
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginPage()), // Make sure your login class is named LoginPage
-                (Route<dynamic> route) => false,
-              );
+            onTap: () async {
+              // SECURITY FIX: Wipe biometric vault on logout
+              const secureStorage = FlutterSecureStorage();
+              await secureStorage.deleteAll(); 
+              
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('biometric', false);
+
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                  (Route<dynamic> route) => false,
+                );
+              }
             },
           ),
         ],
@@ -236,7 +248,6 @@ class SecretaryDashboard extends StatelessWidget {
     );
   }
 
-  /// Helper for the Unit and Ward chips inside the profile card
   Widget _buildInfoChip(IconData icon, String label, String value) {
     return Column(
       children: [
@@ -253,7 +264,6 @@ class SecretaryDashboard extends StatelessWidget {
     );
   }
 
-  /// Helper for the large Quick Action buttons (Requests & Complaints)
   Widget _buildQuickActionCard(BuildContext context, {required String title, required IconData icon, required Color color, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
@@ -277,7 +287,6 @@ class SecretaryDashboard extends StatelessWidget {
     );
   }
 
-  /// Helper for the clean grid items
   Widget _buildModernGridItem(String title, IconData icon, Color color, {VoidCallback? onTap}) {
     return Container(
       decoration: BoxDecoration(

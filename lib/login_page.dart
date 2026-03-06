@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:local_auth/local_auth.dart';
+
 import 'member.dart'; 
 import 'member_dashboard.dart';
 import 'secretary_dashboard.dart'; 
@@ -19,6 +23,10 @@ class _LoginPageState extends State<LoginPage> {
   String? selectedRole;
   bool _isLoading = false;
 
+  // Initialize Auth & Storage
+  final LocalAuthentication _localAuth = LocalAuthentication();
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+
   final List<String> roles = [
     "Member", 
     "NHG_SECRETARY", 
@@ -28,50 +36,102 @@ class _LoginPageState extends State<LoginPage> {
     "CDS Chairperson"
   ];
 
-  Future<void> _attemptLogin() async {
+  @override
+  void initState() {
+    super.initState();
+    _attemptBiometricAutoLogin(); // Automatically check for biometrics when app opens
+  }
+
+  // ==========================================
+  // 1. BIOMETRIC AUTO-LOGIN
+  // ==========================================
+  Future<void> _attemptBiometricAutoLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool isBiometricEnabled = prefs.getBool('biometric') ?? false;
+
+    if (isBiometricEnabled) {
+      try {
+        final bool canAuthenticate = await _localAuth.canCheckBiometrics || await _localAuth.isDeviceSupported();
+        
+        if (canAuthenticate) {
+          final bool didAuthenticate = await _localAuth.authenticate(
+            localizedReason: 'Scan your fingerprint to open K-SHREE',
+            options: const AuthenticationOptions(biometricOnly: true, stickyAuth: true),
+          );
+
+          if (didAuthenticate) {
+            // Retrieve saved credentials from secure vault
+            final savedAadhar = await _secureStorage.read(key: 'aadhar');
+            final savedPassword = await _secureStorage.read(key: 'password');
+            final savedRole = await _secureStorage.read(key: 'role');
+
+            if (savedAadhar != null && savedPassword != null && savedRole != null) {
+              setState(() {
+                userIdController.text = savedAadhar;
+                passwordController.text = savedPassword;
+                selectedRole = savedRole;
+              });
+              await _attemptLogin(isAutoLogin: true); // Proceed to login
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint("Biometric error: $e");
+      }
+    }
+  }
+
+  // ==========================================
+  // 2. STANDARD LOGIN LOGIC
+  // ==========================================
+  Future<void> _attemptLogin({bool isAutoLogin = false}) async {
+    if (!isAutoLogin && !_formKey.currentState!.validate()) return;
+
     setState(() => _isLoading = true);
+    
     try {
-      // 2. Logic for roles stored in 'Registered_Members' table (Secretary and ADS Chairperson)
+      final aadhar = userIdController.text.trim();
+      final password = passwordController.text.trim();
+      
+      // Check Admin Roles (Secretary, ADS Chairperson)
       if (selectedRole == 'NHG_SECRETARY' || selectedRole == 'ADS_Chairperson') {
         final response = await Supabase.instance.client
             .from('Registered_Members')
             .select()
-            .eq('aadhar_number', userIdController.text.trim())
-            .eq('password', passwordController.text.trim())
+            .eq('aadhar_number', aadhar)
+            .eq('password', password)
             .eq('designation', selectedRole!)
             .maybeSingle();
 
         if (response != null && mounted) {
+          await _saveCredentialsSecurely(aadhar, password, selectedRole!); // Save to vault
+          
           if (selectedRole == 'NHG_SECRETARY') {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => SecretaryDashboard(userData: response)),
-            );
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => SecretaryDashboard(userData: response)));
           } else if (selectedRole == 'ADS_Chairperson') {
-            // 3. Navigation to your new ADS Chairperson Dashboard
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => ADSChairpersonDashboard(userData: response)),
-            );
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ADSChairpersonDashboard(userData: response)));
           }
         } else {
           _showErrorDialog("Invalid $selectedRole Credentials. Please check your Aadhar and password.");
         }
       } else {
-        // 4. Original Logic for general Members & Admins stored in 'members' table
+        // Check General Members
         final response = await Supabase.instance.client
-            .from('Registered_Members').select()
-            .eq('aadhar_number', userIdController.text.trim())
-            .eq('password', passwordController.text.trim())
+            .from('Registered_Members')
+            .select()
+            .eq('aadhar_number', aadhar)
+            .eq('password', password)
             .maybeSingle();
 
         if (response != null && mounted) {
           final member = Member.fromMap(response);
+          
           if (selectedRole == "Member") {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => MemberDashboard(member: member)),
-            );
+            await _saveCredentialsSecurely(aadhar, password, selectedRole!); // Save to vault
+            
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => MemberDashboard(member: member)));
+          } else {
+             _showErrorDialog("Role mismatch. You are registered as a Member, not $selectedRole.");
           }
         } else {
           _showErrorDialog("Account not found. Would you like to apply for membership?");
@@ -82,6 +142,13 @@ class _LoginPageState extends State<LoginPage> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  // Save credentials to the device's secure keychain
+  Future<void> _saveCredentialsSecurely(String aadhar, String password, String role) async {
+    await _secureStorage.write(key: 'aadhar', value: aadhar);
+    await _secureStorage.write(key: 'password', value: password);
+    await _secureStorage.write(key: 'role', value: role);
   }
 
   void _showErrorDialog(String message) {
@@ -113,10 +180,8 @@ class _LoginPageState extends State<LoginPage> {
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
-              const Text("K-SHREE", 
-                style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.teal, letterSpacing: 2)),
-              const Text("Kudumbashree Management System", 
-                style: TextStyle(fontSize: 16, color: Colors.black54)),
+              const Text("K-SHREE", style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.teal, letterSpacing: 2)),
+              const Text("Kudumbashree Management System", style: TextStyle(fontSize: 16, color: Colors.black54)),
               const SizedBox(height: 30),
               
               Container(
@@ -124,23 +189,14 @@ class _LoginPageState extends State<LoginPage> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 15,
-                      offset: const Offset(0, 5),
-                    )
-                  ],
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
                 ),
                 child: Form(
                   key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Center(
-                        child: Text("Login to your account", 
-                          style: TextStyle(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.w500)),
-                      ),
+                      const Center(child: Text("Login to your account", style: TextStyle(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.w500))),
                       const SizedBox(height: 25),
                       
                       const Text(" Select Role", style: TextStyle(fontWeight: FontWeight.w600, color: Colors.blueGrey)),
@@ -158,6 +214,7 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: userIdController, 
+                        keyboardType: TextInputType.number, // Make it easier to type Aadhar
                         decoration: _inputDecoration("Enter ID or Aadhar", Icons.person),
                         validator: (v) => v!.isEmpty ? "Required" : null,
                       ),
@@ -177,16 +234,11 @@ class _LoginPageState extends State<LoginPage> {
                         width: double.infinity, 
                         height: 50,
                         child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          onPressed: _isLoading ? null : () { 
-                            if (_formKey.currentState!.validate()) _attemptLogin(); 
-                          },
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                          onPressed: _isLoading ? null : () => _attemptLogin(),
                           child: _isLoading 
                             ? const CircularProgressIndicator(color: Colors.white) 
-                            : const Text("Login", style: TextStyle(color: Colors.white, fontSize: 16)),
+                            : const Text("Login", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
@@ -197,8 +249,7 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 25),
               TextButton(
                 onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MembershipPage())),
-                child: const Text("Don't have an account? Apply here", 
-                  style: TextStyle(color: Colors.teal, fontWeight: FontWeight.bold)),
+                child: const Text("Don't have an account? Apply here", style: TextStyle(color: Colors.teal, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -213,10 +264,7 @@ class _LoginPageState extends State<LoginPage> {
       prefixIcon: Icon(icon, color: Colors.teal),
       filled: true,
       fillColor: const Color(0xFFF9F9F9),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
       contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
     );
   }

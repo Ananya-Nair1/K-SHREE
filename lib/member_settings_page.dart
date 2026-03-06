@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart'; 
+import 'package:local_auth/local_auth.dart';
 import 'login_page.dart'; 
+import 'member_profile_page.dart'; // REQUIRED IMPORT
 
 class MemberSettingsPage extends StatefulWidget {
   final String memberId;
@@ -16,13 +20,74 @@ class _MemberSettingsPageState extends State<MemberSettingsPage> {
   bool _biometricEnabled = false;
   bool _darkModeEnabled = false;
   bool _hideBalancesEnabled = false;
+  String _currentLanguage = "English";
+  
+  final LocalAuthentication _localAuth = LocalAuthentication();
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+
+  // ==========================================
+  // SIMPLE TRANSLATION DICTIONARY
+  // ==========================================
+  final Map<String, String> _malayalamTranslations = {
+    'Settings': 'ക്രമീകരണങ്ങൾ',
+    'Account & Security': 'അക്കൗണ്ടും സുരക്ഷയും',
+    'Update Phone Number': 'ഫോൺ നമ്പർ മാറ്റുക',
+    'Change your registered mobile number': 'നിങ്ങളുടെ രജിസ്റ്റർ ചെയ്ത മൊബൈൽ നമ്പർ മാറ്റുക',
+    'Change Password': 'പാസ്‌വേഡ് മാറ്റുക',
+    'Update your login password': 'നിങ്ങളുടെ ലോഗിൻ പാസ്‌വേഡ് അപ്ഡേറ്റ് ചെയ്യുക',
+    'Biometric Login': 'ബയോമെട്രിക് ലോഗിൻ',
+    'Use fingerprint to open the app': 'ആപ്പ് തുറക്കാൻ വിരലടയാളം ഉപയോഗിക്കുക',
+    'Financial Details': 'സാമ്പത്തിക വിവരങ്ങൾ',
+    'Linked Bank Account': 'ലിങ്ക് ചെയ്ത ബാങ്ക് അക്കൗണ്ട്',
+    'Manage your account for loan disbursements': 'ലോൺ നൽകുന്നതിനായി നിങ്ങളുടെ അക്കൗണ്ട് കൈകാര്യം ചെയ്യുക',
+    'Hide Dashboard Balances': 'ഡാഷ്‌ബോർഡ് ബാലൻസുകൾ മറയ്ക്കുക',
+    'Hide your savings/loans on the home screen': 'ഹോം സ്ക്രീനിൽ നിങ്ങളുടെ സമ്പാദ്യം/ലോണുകൾ മറയ്ക്കുക',
+    'App Preferences': 'ആപ്പ് മുൻഗണനകൾ',
+    'Language': 'ഭാഷ',
+    'Push Notifications': 'പുഷ് അറിയിപ്പുകൾ',
+    'Alerts for meetings and thrift': 'മീറ്റിംഗുകൾക്കും സമ്പാദ്യത്തിനുമുള്ള അലേർട്ടുകൾ',
+    'Help & Legal': 'സഹായവും നിയമപരവും',
+    'Help Center / FAQ': 'സഹായ കേന്ദ്രം / FAQ',
+    'Contact ADS / Secretary': 'ADS / സെക്രട്ടറിയെ ബന്ധപ്പെടുക',
+    'Kudumbashree Bylaws': 'കുടുംബശ്രീ നിയമാവലി',
+    'Log Out': 'ലോഗ് ഔട്ട് ചെയ്യുക',
+  };
+
+  String _t(String englishText) {
+    if (_currentLanguage == "Malayalam") {
+      return _malayalamTranslations[englishText] ?? englishText;
+    }
+    return englishText;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _currentLanguage = prefs.getString('language') ?? "English";
+      _biometricEnabled = prefs.getBool('biometric') ?? false;
+      _hideBalancesEnabled = prefs.getBool('hideBalances') ?? false;
+    });
+  }
+
+  Future<void> _changeLanguage(String lang) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('language', lang);
+    setState(() => _currentLanguage = lang);
+    Navigator.pop(context); 
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F6),
       appBar: AppBar(
-        title: const Text('Settings', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(_t('Settings'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.teal,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
@@ -32,120 +97,132 @@ class _MemberSettingsPageState extends State<MemberSettingsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionHeader("Account & Security"),
+            _buildSectionHeader(_t("Account & Security")),
             _buildSettingsCard(
               children: [
                 _buildListTile(
                   icon: Icons.phone_android,
-                  title: "Update Phone Number",
-                  subtitle: "Change your registered mobile number",
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => _UpdatePhoneDialog(memberId: widget.memberId),
-                    );
-                  },
+                  title: _t("Update Phone Number"),
+                  subtitle: _t("Change your registered mobile number"),
+                  onTap: () => showDialog(context: context, builder: (context) => _UpdatePhoneDialog(memberId: widget.memberId)),
                 ),
                 const Divider(height: 1),
                 _buildListTile(
                   icon: Icons.lock_outline,
-                  title: "Change Password",
-                  subtitle: "Update your login password",
+                  title: _t("Change Password"),
+                  subtitle: _t("Update your login password"),
+                  onTap: () => showDialog(context: context, builder: (context) => _ChangePasswordDialog(memberId: widget.memberId)),
+                ),
+                const Divider(height: 1),
+                _buildSwitchTile(
+                  icon: Icons.fingerprint,
+                  title: _t("Biometric Login"),
+                  subtitle: _t("Use fingerprint to open the app"),
+                  value: _biometricEnabled,
+                  onChanged: (val) async {
+                    if (val == true) {
+                      final bool canAuthenticate = await _localAuth.canCheckBiometrics || await _localAuth.isDeviceSupported();
+                      if (canAuthenticate) {
+                        final bool didAuthenticate = await _localAuth.authenticate(
+                          localizedReason: 'Verify your identity to enable biometric login',
+                          options: const AuthenticationOptions(stickyAuth: true, biometricOnly: true),
+                        );
+                        if (didAuthenticate) {
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setBool('biometric', true);
+                          setState(() => _biometricEnabled = true);
+                        }
+                      } else {
+                        _showSnackBar("Biometrics not supported on this device");
+                      }
+                    } else {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setBool('biometric', false);
+                      setState(() => _biometricEnabled = false);
+                    }
+                  },
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 25),
+
+            _buildSectionHeader(_t("Financial Details")),
+            _buildSettingsCard(
+              children: [
+                // UPDATED: Navigates to Profile Page instead of showing a Snackbar
+                _buildListTile(
+                  icon: Icons.account_balance,
+                  title: _t("Linked Bank Account"),
+                  subtitle: _t("Manage your account for loan disbursements"),
                   onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => _ChangePasswordDialog(memberId: widget.memberId),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MemberProfilePage(memberId: widget.memberId),
+                      ),
                     );
                   },
                 ),
                 const Divider(height: 1),
                 _buildSwitchTile(
-                  icon: Icons.fingerprint,
-                  title: "Biometric Login",
-                  subtitle: "Use fingerprint to open the app",
-                  value: _biometricEnabled,
-                  onChanged: (val) => setState(() => _biometricEnabled = val),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 25),
-
-            _buildSectionHeader("Financial Details"),
-            _buildSettingsCard(
-              children: [
-                _buildListTile(
-                  icon: Icons.account_balance,
-                  title: "Linked Bank Account",
-                  subtitle: "Manage your account for loan disbursements",
-                  onTap: () => _showSnackBar("Bank Account management coming soon!"),
-                ),
-                const Divider(height: 1),
-                _buildSwitchTile(
                   icon: Icons.visibility_off_outlined,
-                  title: "Hide Dashboard Balances",
-                  subtitle: "Hide your savings/loans on the home screen",
+                  title: _t("Hide Dashboard Balances"),
+                  subtitle: _t("Hide your savings/loans on the home screen"),
                   value: _hideBalancesEnabled,
-                  onChanged: (val) => setState(() => _hideBalancesEnabled = val),
+                  onChanged: (val) async {
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('hideBalances', val);
+                    setState(() => _hideBalancesEnabled = val);
+                  },
                 ),
               ],
             ),
 
             const SizedBox(height: 25),
 
-            _buildSectionHeader("App Preferences"),
+            _buildSectionHeader(_t("App Preferences")),
             _buildSettingsCard(
               children: [
                 _buildListTile(
                   icon: Icons.language,
-                  title: "Language",
-                  subtitle: "English",
+                  title: _t("Language"),
+                  subtitle: _currentLanguage == "Malayalam" ? "മലയാളം" : "English",
                   onTap: () => _showLanguageDialog(),
                 ),
                 const Divider(height: 1),
                 _buildSwitchTile(
                   icon: Icons.notifications_active_outlined,
-                  title: "Push Notifications",
-                  subtitle: "Alerts for meetings and thrift",
+                  title: _t("Push Notifications"),
+                  subtitle: _t("Alerts for meetings and thrift"),
                   value: _notificationsEnabled,
                   onChanged: (val) => setState(() => _notificationsEnabled = val),
-                ),
-                const Divider(height: 1),
-                _buildSwitchTile(
-                  icon: Icons.dark_mode_outlined,
-                  title: "Dark Mode",
-                  subtitle: "Easier on the eyes",
-                  value: _darkModeEnabled,
-                  onChanged: (val) => setState(() => _darkModeEnabled = val),
                 ),
               ],
             ),
 
             const SizedBox(height: 25),
 
-            _buildSectionHeader("Help & Legal"),
+            _buildSectionHeader(_t("Help & Legal")),
             _buildSettingsCard(
               children: [
                 _buildListTile(
                   icon: Icons.help_outline,
-                  title: "Help Center / FAQ",
+                  title: _t("Help Center / FAQ"),
                   onTap: () => _showHelpCenterDialog(),
                 ),
                 const Divider(height: 1),
                 _buildListTile(
                   icon: Icons.support_agent,
-                  title: "Contact ADS / Secretary",
+                  title: _t("Contact ADS / Secretary"),
                   onTap: () => _showContactSupportDialog(),
                 ),
                 const Divider(height: 1),
                 _buildListTile(
                   icon: Icons.gavel,
-                  title: "Kudumbashree Bylaws",
+                  title: _t("Kudumbashree Bylaws"),
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const MemberBylawsPage()),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const MemberBylawsPage()));
                   },
                 ),
               ],
@@ -167,13 +244,19 @@ class _MemberSettingsPageState extends State<MemberSettingsPage> {
                   ),
                 ),
                 icon: const Icon(Icons.logout),
-                label: const Text("Log Out", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                onPressed: () {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => const LoginPage()),
-                    (Route<dynamic> route) => false,
-                  );
+                label: Text(_t("Log Out"), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                onPressed: () async {
+                  await _secureStorage.deleteAll(); 
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setBool('biometric', false);
+
+                  if (context.mounted) {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (context) => const LoginPage()),
+                      (Route<dynamic> route) => false,
+                    );
+                  }
                 },
               ),
             ),
@@ -181,11 +264,7 @@ class _MemberSettingsPageState extends State<MemberSettingsPage> {
             const SizedBox(height: 20),
             
             const Center(
-              child: Text(
-                "K-SHREE App v1.0.0\nMade in Kerala",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
+              child: Text("K-SHREE App v1.0.0\nMade in Kerala", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 12)),
             ),
             const SizedBox(height: 20),
           ],
@@ -199,10 +278,7 @@ class _MemberSettingsPageState extends State<MemberSettingsPage> {
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 8, bottom: 10),
-      child: Text(
-        title,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey),
-      ),
+      child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
     );
   }
 
@@ -211,9 +287,7 @@ class _MemberSettingsPageState extends State<MemberSettingsPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Column(children: children),
     );
@@ -258,15 +332,13 @@ class _MemberSettingsPageState extends State<MemberSettingsPage> {
           children: [
             ListTile(
               title: const Text("English"),
-              trailing: const Icon(Icons.check_circle, color: Colors.teal),
-              onTap: () => Navigator.pop(context),
+              trailing: _currentLanguage == "English" ? const Icon(Icons.check_circle, color: Colors.teal) : null,
+              onTap: () => _changeLanguage("English"),
             ),
             ListTile(
               title: const Text("മലയാളം (Malayalam)"),
-              onTap: () {
-                Navigator.pop(context);
-                _showSnackBar("Malayalam translation coming soon!");
-              },
+              trailing: _currentLanguage == "Malayalam" ? const Icon(Icons.check_circle, color: Colors.teal) : null,
+              onTap: () => _changeLanguage("Malayalam"),
             ),
           ],
         ),
@@ -314,9 +386,19 @@ class _MemberSettingsPageState extends State<MemberSettingsPage> {
           children: [
             const Text("For financial data issues, reach out below:"),
             const SizedBox(height: 20),
-            _buildContactRow(Icons.phone, "+91 98765 43210", "ADS Helpline"),
-            const SizedBox(height: 12),
-            _buildContactRow(Icons.email, "support@kshree.gov.in", "Official Email"),
+            Row(
+              children: [
+                const Icon(Icons.phone, color: Colors.teal, size: 20),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text("ADS Helpline", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    Text("+91 98765 43210", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  ],
+                ),
+              ],
+            ),
           ],
         ),
         actions: [
@@ -326,29 +408,13 @@ class _MemberSettingsPageState extends State<MemberSettingsPage> {
     );
   }
 
-  Widget _buildContactRow(IconData icon, String detail, String label) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.teal, size: 20),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            Text(detail, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-          ],
-        ),
-      ],
-    );
-  }
-
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
 // =========================================================================
-// Dialog Widgets defined below to avoid "Undefined" errors
+// Dialog Widgets 
 // =========================================================================
 
 class _UpdatePhoneDialog extends StatefulWidget {
@@ -365,10 +431,7 @@ class _UpdatePhoneDialogState extends State<_UpdatePhoneDialog> {
   Future<void> _updatePhone() async {
     setState(() => _isLoading = true);
     try {
-      await Supabase.instance.client
-          .from('Registered_Members')
-          .update({'phone_number': _phoneController.text})
-          .eq('aadhar_number', widget.memberId);
+      await Supabase.instance.client.from('Registered_Members').update({'phone_number': _phoneController.text}).eq('aadhar_number', widget.memberId);
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Phone number updated!'), backgroundColor: Colors.green));

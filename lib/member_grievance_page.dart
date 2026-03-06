@@ -17,7 +17,6 @@ class _MemberGrievancePageState extends State<MemberGrievancePage> {
   final _descriptionController = TextEditingController();
   String? _selectedCategory;
 
-  // NEW: General Complaint Categories
   final List<String> _complaintCategories = [
     "Loan Disbursement Delay",
     "Thrift/Savings Mismatch",
@@ -41,7 +40,6 @@ class _MemberGrievancePageState extends State<MemberGrievancePage> {
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
-      // Status starts at 'Pending at NHG'
       await supabase.from('complaints').insert({
         'member_id': widget.memberId,
         'unit_number': widget.unitNumber,
@@ -71,53 +69,95 @@ class _MemberGrievancePageState extends State<MemberGrievancePage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-      builder: (context) => StatefulBuilder( // Needed to update dropdown state inside sheet
+      builder: (context) => StatefulBuilder( 
         builder: (context, setModalState) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 20),
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 24, right: 24, top: 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text("New Grievance", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.teal)),
-              const SizedBox(height: 15),
+              const SizedBox(height: 20),
               
-              // NEW: Category Dropdown
+              // ==========================================
+              // MODERN & OVERFLOW-SAFE DROPDOWN
+              // ==========================================
               DropdownButtonFormField<String>(
+                isExpanded: true, // FIX: Forces text to truncate instead of overflowing
                 value: _selectedCategory,
+                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.teal, size: 28),
+                elevation: 4,
+                dropdownColor: Colors.white,
                 decoration: InputDecoration(
                   labelText: "Complaint Category",
-                  prefixIcon: const Icon(Icons.category),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  labelStyle: const TextStyle(color: Colors.blueGrey, fontWeight: FontWeight.w500),
+                  filled: true,
+                  fillColor: Colors.teal.withOpacity(0.04), // Subtle modern background
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Container(
+                      decoration: BoxDecoration(color: Colors.teal.withOpacity(0.15), shape: BoxShape.circle),
+                      child: const Icon(Icons.category_rounded, color: Colors.teal, size: 20),
+                    ),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none, // Removes default harsh border
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Colors.teal, width: 1.5),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 ),
-                items: _complaintCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                items: _complaintCategories.map((c) => DropdownMenuItem(
+                  value: c, 
+                  child: Text(c, style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87), overflow: TextOverflow.ellipsis)
+                )).toList(),
                 onChanged: (val) => setModalState(() => _selectedCategory = val),
               ),
               
-              const SizedBox(height: 15),
+              const SizedBox(height: 20),
+              
+              // MODERNIZED TEXT FIELD
               TextField(
                 controller: _descriptionController,
                 maxLines: 4,
                 decoration: InputDecoration(
-                  labelText: 'Explain the issue...',
+                  labelText: 'Explain the issue in detail...',
+                  labelStyle: const TextStyle(color: Colors.blueGrey),
                   alignLabelWithHint: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: Colors.teal.withOpacity(0.04),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Colors.teal, width: 1.5),
+                  ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 25),
+              
+              // MODERNIZED BUTTON
               SizedBox(
                 width: double.infinity,
-                height: 50,
+                height: 55,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.teal,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                   onPressed: _submitComplaint,
                   child: const Text("Submit to NHG Secretary", style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 25),
             ],
           ),
         ),
@@ -141,6 +181,12 @@ class _MemberGrievancePageState extends State<MemberGrievancePage> {
           if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: Colors.teal));
           final complaints = snapshot.data as List<dynamic>? ?? [];
 
+          if (complaints.isEmpty) {
+            return const Center(
+              child: Text("No grievances filed yet.", style: TextStyle(color: Colors.grey, fontSize: 16)),
+            );
+          }
+
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: complaints.length,
@@ -150,9 +196,10 @@ class _MemberGrievancePageState extends State<MemberGrievancePage> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddComplaintSheet,
-        backgroundColor: Colors.redAccent,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text("File Complaint", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.teal,
+        elevation: 4,
+        icon: const Icon(Icons.add_comment_rounded, color: Colors.white),
+        label: const Text("New Grievance", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
   }
@@ -160,15 +207,28 @@ class _MemberGrievancePageState extends State<MemberGrievancePage> {
   Widget _buildComplaintCard(Map<String, dynamic> complaint) {
     final status = complaint['status'] ?? 'Pending at NHG';
     
-    // Status Flow UI
+    // Status Flow UI Colors
     Color statusColor = Colors.orange;
-    if (status.contains('ADS')) statusColor = Colors.blue;
-    if (status.contains('CDS')) statusColor = Colors.purple;
-    if (status == 'Resolved') statusColor = Colors.green;
+    Color bgColor = Colors.orange.withOpacity(0.1);
+    
+    if (status.contains('ADS')) {
+      statusColor = Colors.blue;
+      bgColor = Colors.blue.withOpacity(0.1);
+    } else if (status.contains('CDS')) {
+      statusColor = Colors.purple;
+      bgColor = Colors.purple.withOpacity(0.1);
+    } else if (status == 'Resolved') {
+      statusColor = Colors.green;
+      bgColor = Colors.green.withOpacity(0.1);
+    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 0, // Flat modern look
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -177,16 +237,26 @@ class _MemberGrievancePageState extends State<MemberGrievancePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(complaint['subject'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Expanded(
+                  child: Text(
+                    complaint['subject'], 
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(12)),
                   child: Text(status, style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
-            const Divider(),
-            Text(complaint['description'], style: const TextStyle(color: Colors.grey)),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: Divider(),
+            ),
+            Text(complaint['description'], style: TextStyle(color: Colors.grey.shade700, height: 1.4)),
           ],
         ),
       ),

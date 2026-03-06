@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'edit_profile_page.dart'; // Ensure you have created this file
 
 class MemberProfilePage extends StatefulWidget {
   final String memberId; // This is their Aadhar number
@@ -14,7 +15,6 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
   final supabase = Supabase.instance.client;
 
   Future<Map<String, dynamic>> _fetchProfileData() async {
-    
     try {
       print("==== 🔍 DEBUG: Searching Supabase for Aadhar: ${widget.memberId} ====");
       final response = await supabase
@@ -23,8 +23,6 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
           .eq('aadhar_number', widget.memberId)
           .maybeSingle(); 
 
-      // UPDATED: If the user isn't found in Registered_Members, return a graceful fallback 
-      // instead of crashing the app with an exception!
       if (response == null) {
         return {
           'full_name': 'Profile Incomplete',
@@ -37,17 +35,29 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
           'panchayat': 'N/A',
           'district': 'N/A',
           'photo_url': '',
+          'bank_name': 'N/A',
+          'account_number': 'N/A',
+          'ifsc_code': 'N/A',
+          'pan_card': 'N/A',
+          'ration_card_number': 'N/A',
+          'card_category': 'N/A',
+          'blood_group': 'N/A',
+          'emergency_contact': 'N/A',
         };
       }
       
       return response;
     } catch (e) {
-      // Catch any other weird network errors gracefully
       return {
         'full_name': 'Error Loading Profile',
         'aadhar_number': widget.memberId,
       };
     }
+  }
+
+  // Helper method to refresh the page after editing
+  void _refreshProfile() {
+    setState(() {}); // Calling setState triggers FutureBuilder to re-fetch data
   }
 
   @override
@@ -91,10 +101,7 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
                       width: double.infinity,
                       decoration: const BoxDecoration(
                         color: Colors.teal,
-                        borderRadius: BorderRadius.only(
-                          bottomLeft: Radius.circular(30),
-                          bottomRight: Radius.circular(30),
-                        ),
+                        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
                       ),
                     ),
                     Positioned(
@@ -118,7 +125,7 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
                   ],
                 ),
                 
-                const SizedBox(height: 60), // Spacing for the overlapping avatar
+                const SizedBox(height: 60), 
                 
                 Text(
                   profile['full_name'] ?? 'Unknown Member',
@@ -131,6 +138,37 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
                 ),
 
                 const SizedBox(height: 25),
+
+                // Edit Profile Button
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 45,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.teal,
+                        side: const BorderSide(color: Colors.teal),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon: const Icon(Icons.edit, size: 18),
+                      label: const Text("Edit Additional Details", style: TextStyle(fontWeight: FontWeight.bold)),
+                      onPressed: () async {
+                        // Navigate to Edit page and wait for a result
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => EditProfilePage(currentProfile: profile)),
+                        );
+                        // If result is true, it means they saved data, so we refresh the profile page
+                        if (result == true) {
+                          _refreshProfile();
+                        }
+                      },
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
 
                 // Personal Details Card
                 Padding(
@@ -164,6 +202,46 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
                       _buildDetailRow(Icons.location_city, "Panchayat", profile['panchayat']),
                       const Divider(),
                       _buildDetailRow(Icons.location_on, "District", profile['district']),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Bank & KYC Details Card
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildInfoCard(
+                    title: "Bank & KYC Details",
+                    icon: Icons.account_balance,
+                    children: [
+                      _buildDetailRow(Icons.account_balance_wallet, "Bank Name", profile['bank_name']?.toString()),
+                      const Divider(),
+                      _buildDetailRow(Icons.numbers, "Account Number", profile['account_number']?.toString()),
+                      const Divider(),
+                      _buildDetailRow(Icons.account_tree, "IFSC Code", profile['ifsc_code']?.toString()),
+                      const Divider(),
+                      _buildDetailRow(Icons.credit_card, "PAN Card Number", profile['pan_card']?.toString()),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Health & Welfare Card
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildInfoCard(
+                    title: "Health & Welfare",
+                    icon: Icons.health_and_safety,
+                    children: [
+                      _buildDetailRow(Icons.featured_play_list, "Ration Card Number", profile['ration_card_number']?.toString()),
+                      const Divider(),
+                      _buildDetailRow(Icons.category, "Card Category", profile['card_category']?.toString()),
+                      const Divider(),
+                      _buildDetailRow(Icons.bloodtype, "Blood Group", profile['blood_group']?.toString()),
+                      const Divider(),
+                      _buildDetailRow(Icons.contact_emergency, "Emergency Contact", profile['emergency_contact']?.toString()),
                     ],
                   ),
                 ),
@@ -205,6 +283,9 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
   }
 
   Widget _buildDetailRow(IconData icon, String label, String? value) {
+    // Check if the value is empty, null, or 'N/A' to show 'Not Provided' in grey italic text
+    bool isEmpty = value == null || value.isEmpty || value == 'N/A';
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
@@ -217,7 +298,15 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
               children: [
                 Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
                 const SizedBox(height: 2),
-                Text(value ?? 'N/A', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black87)),
+                Text(
+                  isEmpty ? 'Not Provided' : value, 
+                  style: TextStyle(
+                    fontSize: 16, 
+                    fontWeight: FontWeight.w500, 
+                    color: isEmpty ? Colors.grey : Colors.black87,
+                    fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
+                  )
+                ),
               ],
             ),
           ),
