@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'member.dart'; 
 import 'member_meetings_page.dart';
-// ADD THIS IMPORT: Make sure this points to your actual login page file
+import 'member_grievance_page.dart';
 import 'login_page.dart'; 
+import 'member_profile_page.dart';
+import 'member_savings_page.dart';
+import 'member_settings_page.dart';
 
 class MemberDashboard extends StatelessWidget {
   final Member member; // Receives the logged-in member's data
@@ -120,7 +123,11 @@ class MemberDashboard extends StatelessWidget {
                       icon: Icons.menu_book,
                       color: Colors.blue,
                       onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Passbook Coming Soon")));
+                        // UPDATED: Now routes to the Passbook/Savings Page!
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => MemberSavingsPage(memberId: userId)),
+                        );
                       },
                     ),
                   ),
@@ -163,14 +170,44 @@ class MemberDashboard extends StatelessWidget {
                       MaterialPageRoute(builder: (context) => MemberMeetingsPage(unitNumber: unit)),
                     );
                   }),
-                  _buildModernGridItem(context, 'Savings', Icons.savings, Colors.teal),
+                  
+                  // UPDATED: Now routes to the Passbook/Savings Page!
+                  _buildModernGridItem(context, 'Savings', Icons.savings, Colors.teal, onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => MemberSavingsPage(memberId: userId)),
+                    );
+                  }),
+                  
                   _buildModernGridItem(context, 'My Loans', Icons.monetization_on, Colors.green),
                   _buildModernGridItem(context, 'Schemes', Icons.account_balance, Colors.blue),
                   _buildModernGridItem(context, 'Trainings', Icons.school, Colors.orange),
-                  _buildModernGridItem(context, 'Complaints', Icons.report_problem, Colors.redAccent),
+                  _buildModernGridItem(context, 'Complaints', Icons.report_problem, Colors.redAccent, onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MemberGrievancePage(
+                          memberId: userId,
+                          unitNumber: unit,
+                        ),
+                      ),
+                    );
+                  }),
                   _buildModernGridItem(context, 'Elections', Icons.how_to_reg, Colors.purple),
-                  _buildModernGridItem(context, 'Profile', Icons.person, Colors.pink),
-                  _buildModernGridItem(context, 'Settings', Icons.settings, Colors.grey),
+                  _buildModernGridItem(context, 'Profile', Icons.person, Colors.pink, onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MemberProfilePage(memberId: userId),
+                      ),
+                    );
+                  }),
+                  _buildModernGridItem(context, 'Settings', Icons.settings, Colors.grey, onTap: () {
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => MemberSettingsPage(memberId: userId)),
+  );
+}),
                 ],
               ),
             ),
@@ -209,10 +246,9 @@ class MemberDashboard extends StatelessWidget {
             leading: const Icon(Icons.logout, color: Colors.red),
             title: const Text('Logout', style: TextStyle(color: Colors.red)),
             onTap: () {
-              // UPDATED: Completely clears the navigation stack and sends user to Login Page
               Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (context) => const LoginPage()), // Make sure your login class is named LoginPage
+                MaterialPageRoute(builder: (context) => const LoginPage()), 
                 (Route<dynamic> route) => false,
               );
             },

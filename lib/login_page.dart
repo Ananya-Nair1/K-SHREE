@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'member.dart'; 
 import 'member_dashboard.dart';
-import 'admin_dashboard.dart'; 
 import 'secretary_dashboard.dart'; 
 import 'inter_membership_page.dart';
-import 'ads_chairperson_dashboard.dart'; // 1. Added import for ADS Dashboard
+import 'ads_chairperson_dashboard.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -24,7 +23,7 @@ class _LoginPageState extends State<LoginPage> {
     "Member", 
     "NHG_SECRETARY", 
     "ADS Member", 
-    "ADS_Chairperson", // Matches the role in your login logic
+    "ADS_Chairperson", 
     "CDS Member", 
     "CDS Chairperson"
   ];
@@ -72,11 +71,6 @@ class _LoginPageState extends State<LoginPage> {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => MemberDashboard(member: member)),
-            );
-          } else {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const AdminDashboard()),
             );
           }
         } else {
