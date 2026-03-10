@@ -1,136 +1,406 @@
 import 'package:flutter/material.dart';
+import 'package:k_shree/report_management_page.dart';
+import 'login_page.dart'; 
+import 'member_meetings_page.dart'; 
+import 'ads_notification_page.dart'; 
+import 'ward_unit_page.dart';
+import 'ads_member_meeting_page.dart';
+import 'ads_chairperson_settings_page.dart'; 
+import 'ads_chairperson_profile_page.dart';
+import 'ads_loan_requests_page.dart'; 
+import 'ads_complaints_page.dart'; 
+import 'ads_chairperson_loans_page.dart'; 
+import 'ads_savings_page.dart';
+import 'ads_savings_page.dart'; // Ensure this is imported
 
 class ADSChairpersonDashboard extends StatelessWidget {
   final Map<String, dynamic> userData;
 
-  ADSChairpersonDashboard({required this.userData});
+  const ADSChairpersonDashboard({super.key, required this.userData});
 
   @override
   Widget build(BuildContext context) {
+    final String name = userData['full_name'] ?? 'ADS Chairperson';
+    final String aadhar = userData['aadhar_number']?.toString() ?? 'N/A';
+    final String unit = userData['unit_number']?.toString() ?? 'N/A';
+    final String ward = (userData['ward'] ?? userData['ward_number'])?.toString() ?? 'N/A';
+    final String designation = userData['designation'] ?? 'ADS';
+
+    const Color primaryColor = Color(0xFF2B6CB0); 
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F9F4), // Light greenish background
+      backgroundColor: const Color(0xFFF4F8FB), 
       appBar: AppBar(
-        backgroundColor: const Color(0xFF4285F4), // Blue app bar
+        title: const Text('ADS Dashboard', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: primaryColor,
         elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.menu, color: Colors.white),
-          onPressed: () {},
-        ),
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Replace with your actual K-SHREE logo asset
-            CircleAvatar(
-              radius: 14,
-              backgroundColor: Colors.white,
-              backgroundImage: NetworkImage('https://via.placeholder.com/50'), // Placeholder for logo
-            ),
-            const SizedBox(width: 8),
-            const Text('K-SHREE', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-          ],
-        ),
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications_none, color: Colors.white),
-                onPressed: () {},
-              ),
-              Positioned(
-                right: 12,
-                top: 12,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+          IconButton(
+            icon: const Icon(Icons.notifications_active, color: Colors.white),
+            tooltip: 'View Notifications',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => NotificationPage(userData: userData), 
                 ),
-              )
-            ],
-          )
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings, color: Colors.white),
+            tooltip: 'Settings',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ADSChairpersonSettingsPage(adsId: aadhar),
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 8), 
         ],
       ),
+      drawer: _buildDrawer(context, name, aadhar), 
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildProfileCard(),
-            const SizedBox(height: 24),
-            
-            const Text("ADS Functions", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF4A5568))),
-            const SizedBox(height: 12),
-            _buildADSGrid(),
-            
-            const SizedBox(height: 24),
-            
-            const Text("Member Functions", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF4A5568))),
-            const SizedBox(height: 12),
-            _buildMemberGrid(),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  height: 120,
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    color: primaryColor,
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(30),
+                      bottomRight: Radius.circular(30),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 40, left: 20, right: 20),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 32,
+                              backgroundColor: const Color(0xFFEBF8FF),
+                              backgroundImage: userData['photo_url'] != null ? NetworkImage(userData['photo_url']) : null,
+                              child: userData['photo_url'] == null ? const Icon(Icons.person, size: 35, color: primaryColor) : null,
+                            ),
+                            const SizedBox(width: 15),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF2D3748))),
+                                  const SizedBox(height: 4),
+                                  Text('ID: $aadhar', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 30),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _buildInfoChip(Icons.home_work, "Unit", unit, primaryColor),
+                            Container(width: 1, height: 30, color: Colors.grey[300]), 
+                            _buildInfoChip(Icons.map, "Ward", ward, primaryColor),
+                            Container(width: 1, height: 30, color: Colors.grey[300]), 
+                            _buildInfoChip(Icons.star, "Role", designation, primaryColor),
+                          ],
+                        ),
+                        const SizedBox(height: 15),
+                        const Divider(color: Color(0xFFEDF2F7), thickness: 1),
+                        const SizedBox(height: 10),
+                        _buildAttendanceBar(), 
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 30),
+
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text("Primary Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2D3748))),
+            ),
+            const SizedBox(height: 15),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildQuickActionCard(
+                      context,
+                      title: 'Loan Requests',
+                      icon: Icons.attach_money,
+                      color: Colors.orange,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ADSLoanRequestsPage(userData: userData),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: _buildQuickActionCard(
+                      context,
+                      title: 'View Complaints',
+                      icon: Icons.report_problem,
+                      color: Colors.redAccent,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ADSComplaintsPage(userData: userData),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 30),
+
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text("Management", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2D3748))),
+            ),
+            const SizedBox(height: 15),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 3, 
+                crossAxisSpacing: 15,
+                mainAxisSpacing: 15,
+                childAspectRatio: 0.9,
+                children: [
+                  _buildModernGridItem(
+                    'Meetings', 
+                    Icons.calendar_month, 
+                    Colors.deepPurple,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ADSMemberMeetingsPage(userData: userData),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildModernGridItem(
+                    'Members', 
+                    Icons.groups, 
+                    Colors.indigo,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => WardMembersPage(adsData: userData),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildModernGridItem(
+                    'Reports', 
+                    Icons.analytics_outlined, 
+                    Colors.teal,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ReportsManagementPage(userData: userData),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildModernGridItem(
+                    'My Loans', 
+                    Icons.account_balance_wallet, 
+                    Colors.green,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ADSChairpersonLoansPage(memberId: aadhar),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildModernGridItem('Schemes', Icons.account_balance, Colors.blue),
+                  _buildModernGridItem('Trainings', Icons.school, Colors.orange),
+                  _buildModernGridItem(
+                    'Ward Savings', 
+                    Icons.savings, 
+                    Colors.pink,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ADSWardSavingsPage(userData: userData),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildModernGridItem('Elections', Icons.how_to_reg, Colors.redAccent),
+                  _buildModernGridItem(
+                    'Settings', 
+                    Icons.settings, 
+                    Colors.grey,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ADSChairpersonSettingsPage(adsId: aadhar),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 30),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildProfileCard() {
+  Widget _buildDrawer(BuildContext context, String name, String aadhar) {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          UserAccountsDrawerHeader(
+            decoration: const BoxDecoration(color: Color(0xFF2B6CB0)),
+            accountName: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            accountEmail: const Text("ADS Chairperson"),
+            currentAccountPicture: const CircleAvatar(
+              backgroundColor: Colors.white,
+              child: Icon(Icons.person, size: 40, color: Color(0xFF2B6CB0)),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.dashboard, color: Colors.blueGrey),
+            title: const Text('Dashboard'),
+            onTap: () => Navigator.pop(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.account_circle, color: Colors.teal),
+            title: const Text('My Profile'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ADSChairpersonProfilePage(adsId: aadhar)),
+              );
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text('Logout', style: TextStyle(color: Colors.red)),
+            onTap: () {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginPage()),
+                (Route<dynamic> route) => false,
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoChip(IconData icon, String label, String value, Color color) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 5),
+            Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF2D3748))),
+      ],
+    );
+  }
+
+  Widget _buildQuickActionCard(BuildContext context, {required String title, required IconData icon, required Color color, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: color.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Column(
+          children: [
+            CircleAvatar(backgroundColor: color.withOpacity(0.1), radius: 25, child: Icon(icon, color: color, size: 28)),
+            const SizedBox(height: 12),
+            Text(title, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey[800], fontSize: 14)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernGridItem(String title, IconData icon, Color color, {VoidCallback? onTap}) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
       ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap ?? () {}, 
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircleAvatar(
-                radius: 35,
-                backgroundColor: Colors.grey[200],
-                backgroundImage: NetworkImage(userData['photo_url'] ?? 'https://via.placeholder.com/150'),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      userData['full_name'] ?? 'Name Not Found', 
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A202C))
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      userData['aadhar_number'] ?? 'ID-Not-Found', // Adjust if you have a specific ID field
-                      style: const TextStyle(color: Color(0xFF718096), fontSize: 13)
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      userData['designation'] ?? 'Role Not Found', 
-                      style: const TextStyle(color: Color(0xFF9C27B0), fontWeight: FontWeight.w600, fontSize: 13)
-                    ),
-                    const SizedBox(height: 2),
-                    Text("Ward: ${userData['ward'] ?? 'N/A'}", style: const TextStyle(color: Color(0xFF718096), fontSize: 12)),
-                    Text("Panchayat: ${userData['panchayat'] ?? 'N/A'}", style: const TextStyle(color: Color(0xFF718096), fontSize: 12)),
-                  ],
-                ),
-              ),
+              Icon(icon, color: color, size: 32),
+              const SizedBox(height: 10),
+              Text(title, textAlign: TextAlign.center, style: const TextStyle(color: Colors.blueGrey, fontWeight: FontWeight.bold, fontSize: 12)),
             ],
           ),
-          const SizedBox(height: 16),
-          const Divider(color: Color(0xFFEDF2F7), thickness: 1),
-          const SizedBox(height: 16),
-          _buildAttendanceBar(),
-        ],
+        ),
       ),
     );
   }
@@ -139,23 +409,23 @@ class ADSChairpersonDashboard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("2026 Attendance", style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF2D3748))),
+        const Text("2026 Attendance", style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
         const SizedBox(height: 8),
         Stack(
           children: [
             Container(
-              height: 10,
+              height: 8,
               decoration: BoxDecoration(
                 color: const Color(0xFFE2E8F0),
                 borderRadius: BorderRadius.circular(5),
               ),
             ),
             FractionallySizedBox(
-              widthFactor: 0.88, // Change dynamically based on DB
+              widthFactor: 0.88, 
               child: Container(
-                height: 10,
+                height: 8,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A),
+                  color: const Color(0xFF2B6CB0), 
                   borderRadius: BorderRadius.circular(5),
                 ),
               ),
@@ -166,82 +436,11 @@ class ADSChairpersonDashboard extends StatelessWidget {
         const Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text("22/25 meetings attended", style: TextStyle(fontSize: 12, color: Color(0xFF718096))),
-            Text("88%", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF4A5568))),
+            Text("22/25 meetings attended", style: TextStyle(fontSize: 12, color: Colors.grey)),
+            Text("88%", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2D3748))),
           ],
         )
       ],
-    );
-  }
-
-  Widget _buildADSGrid() {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.6, 
-      children: [
-        _buildButtonCard("View Complaints", Icons.error_outline, const Color(0xFFFFEBEB), const Color(0xFFC53030), const Color(0xFFFEB2B2)),
-        _buildButtonCard("Loan Requests", Icons.attach_money, const Color(0xFFFEFCBF), const Color(0xFF975A16), const Color(0xFFF6E05E)),
-        _buildButtonCard("Meetings Conducted", Icons.assignment_outlined, const Color(0xFFE9D8FD), const Color(0xFF553C9A), const Color(0xFFD6BCFA)),
-        _buildButtonCard("Scheme Progress", Icons.trending_up, const Color(0xFFC6F6D5), const Color(0xFF22543D), const Color(0xFF9AE6B4)),
-      ],
-    );
-  }
-
-  Widget _buildMemberGrid() {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.6,
-      children: [
-        _buildButtonCard("Meeting Report", Icons.description_outlined, const Color(0xFFD6E4FF), const Color(0xFF2B6CB0), const Color(0xFFA3BFFA)),
-        _buildButtonCard("Loans", Icons.attach_money, const Color(0xFFD6E4FF), const Color(0xFF2B6CB0), const Color(0xFFA3BFFA)),
-        _buildButtonCard("Govt Schemes", Icons.account_balance_outlined, const Color(0xFFD6E4FF), const Color(0xFF2B6CB0), const Color(0xFFA3BFFA)),
-        _buildButtonCard("Complaints", Icons.chat_bubble_outline, const Color(0xFFD6E4FF), const Color(0xFF2B6CB0), const Color(0xFFA3BFFA)),
-        _buildButtonCard("Scheduled Meetings", Icons.calendar_today_outlined, const Color(0xFFD6E4FF), const Color(0xFF2B6CB0), const Color(0xFFA3BFFA)),
-        _buildButtonCard("Trainings", Icons.school_outlined, const Color(0xFFD6E4FF), const Color(0xFF2B6CB0), const Color(0xFFA3BFFA)),
-        _buildButtonCard("Savings", Icons.savings_outlined, const Color(0xFFD6E4FF), const Color(0xFF2B6CB0), const Color(0xFFA3BFFA)),
-        _buildButtonCard("Election Procedure", Icons.how_to_vote_outlined, const Color(0xFFD6E4FF), const Color(0xFF2B6CB0), const Color(0xFFA3BFFA)),
-      ],
-    );
-  }
-
-  Widget _buildButtonCard(String title, IconData icon, Color bgColor, Color iconTextColor, Color borderColor) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {}, // Add navigation here
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: borderColor, width: 1),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: iconTextColor, size: 22),
-              const SizedBox(height: 6),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: iconTextColor, 
-                  fontSize: 12, 
-                  fontWeight: FontWeight.w600
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
