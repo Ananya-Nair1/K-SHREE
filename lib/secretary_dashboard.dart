@@ -2,11 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import 'pending_requests_page.dart';
-import 'meeting_management.dart'; 
-import 'unit_members_page.dart';
+// Updated Imports with 'secretary_' prefix
+import 'secretary_pending_requests_page.dart';
+import 'secretary_meeting_management_page.dart'; 
+import 'secretary_unit_members_page.dart';
+import 'secretary_unit_complaints_page.dart';
+import 'secretary_reports_page.dart';
+import 'secretary_loans_page.dart';
+import 'secretary_schemes_page.dart';
+import 'secretary_trainings_page.dart';
+import 'secretary_savings_page.dart';
+import 'secretary_elections_page.dart';
+import 'secretary_settings_page.dart';
 import 'login_page.dart'; 
-// import 'secretary_loans_page.dart'; // Create this next!
 
 class SecretaryDashboard extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -33,70 +41,8 @@ class SecretaryDashboard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  height: 120,
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: Colors.teal,
-                    borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(30),
-                      bottomRight: Radius.circular(30),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 40, left: 20, right: 20),
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            const CircleAvatar(
-                              radius: 30,
-                              backgroundColor: Color(0xFFE0F2F1),
-                              child: Icon(Icons.admin_panel_settings, size: 35, color: Colors.teal),
-                            ),
-                            const SizedBox(width: 15),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-                                  const SizedBox(height: 4),
-                                  Text('ID: $aadhar', style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Divider(height: 30),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _buildInfoChip(Icons.home_work, "Unit", unit),
-                            Container(width: 1, height: 30, color: Colors.grey[300]),
-                            _buildInfoChip(Icons.map, "Ward", ward),
-                            Container(width: 1, height: 30, color: Colors.grey[300]),
-                            _buildInfoChip(Icons.star, "Role", "Secretary"),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            // Header Section
+            _buildHeader(name, aadhar, unit, ward), 
 
             const SizedBox(height: 30),
 
@@ -115,12 +61,16 @@ class SecretaryDashboard extends StatelessWidget {
                       title: 'Member Requests',
                       icon: Icons.person_add_alt_1,
                       color: Colors.blue,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => PendingRequestsPage(unitNumber: userData['unit_number'])),
-                        );
-                      },
+                     // OLD CODE:
+// onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => PendingRequestsPage(unitNumber: userData['unit_number']))),
+
+// NEW CORRECTED CODE:
+onTap: () => Navigator.push(
+  context, 
+  MaterialPageRoute(
+    builder: (context) => PendingRequestsPage(secretaryData: userData),
+  ),
+),
                     ),
                   ),
                   const SizedBox(width: 15),
@@ -130,10 +80,7 @@ class SecretaryDashboard extends StatelessWidget {
                       title: 'Unit Complaints',
                       icon: Icons.report_problem,
                       color: Colors.orange,
-                      onTap: () {
-                        // TODO: Route to UnitGrievanceManagementPage
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Complaints Module Coming Soon")));
-                      },
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => UnitComplaintsPage(userData: userData))),
                     ),
                   ),
                 ],
@@ -157,43 +104,15 @@ class SecretaryDashboard extends StatelessWidget {
                 mainAxisSpacing: 15,
                 childAspectRatio: 0.9,
                 children: [
-                  _buildModernGridItem(
-                    'Meetings', 
-                    Icons.calendar_month, 
-                    Colors.deepPurple,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => MeetingManagementScreen(userData: userData)),
-                      );
-                    },
-                  ),
-                  _buildModernGridItem(
-                    'Members', 
-                    Icons.groups, 
-                    Colors.indigo,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => UnitMembersPage(secretaryData: userData)),
-                      );
-                    },
-                  ),
-                  _buildModernGridItem('Reports', Icons.analytics, Colors.teal),
-                  _buildModernGridItem(
-                    'Loans', 
-                    Icons.account_balance_wallet, 
-                    Colors.green,
-                    onTap: () {
-                      // UPDATED: Route to the Loan Approval/Agenda page
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Loan Agenda View Coming Next!")));
-                    },
-                  ),
-                  _buildModernGridItem('Schemes', Icons.account_balance, Colors.blue),
-                  _buildModernGridItem('Trainings', Icons.school, Colors.orange),
-                  _buildModernGridItem('Savings', Icons.savings, Colors.pink),
-                  _buildModernGridItem('Elections', Icons.how_to_reg, Colors.redAccent),
-                  _buildModernGridItem('Settings', Icons.settings, Colors.grey),
+                  _buildModernGridItem('Meetings', Icons.calendar_month, Colors.deepPurple, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MeetingManagementPage(userData: userData)))),
+                  _buildModernGridItem('Members', Icons.groups, Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => UnitMembersPage(userData: userData)))),
+                  _buildModernGridItem('Reports', Icons.analytics, Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SecretaryReportsPage(userData: userData)))),
+                  _buildModernGridItem('Loans', Icons.account_balance_wallet, Colors.green, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => LoansPage(userData: userData)))),
+                  _buildModernGridItem('Schemes', Icons.account_balance, Colors.blue, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SecretarySchemesPage(userData: userData)))),
+                  _buildModernGridItem('Trainings', Icons.school, Colors.orange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SecretaryTrainingsPage(userData: userData)))),
+                  _buildModernGridItem('Savings', Icons.savings, Colors.pink, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SavingsPage(userData: userData)))),
+                  _buildModernGridItem('Elections', Icons.how_to_reg, Colors.redAccent, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SecretaryElectionsPage(userData: userData)))),
+                  _buildModernGridItem('Settings', Icons.settings, Colors.grey, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SettingsPage(userData: userData)))),
                 ],
               ),
             ),
@@ -201,6 +120,66 @@ class SecretaryDashboard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  // --- UI Helper Methods ---
+  
+  Widget _buildHeader(String name, String aadhar, String unit, String ward) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          height: 120,
+          width: double.infinity,
+          decoration: const BoxDecoration(
+            color: Colors.teal,
+            borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 40, left: 20, right: 20),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const CircleAvatar(radius: 30, backgroundColor: Color(0xFFE0F2F1), child: Icon(Icons.admin_panel_settings, size: 35, color: Colors.teal)),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                          const SizedBox(height: 4),
+                          Text('ID: $aadhar', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 30),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildInfoChip(Icons.home_work, "Unit", unit),
+                    Container(width: 1, height: 30, color: Colors.grey[300]),
+                    _buildInfoChip(Icons.map, "Ward", ward),
+                    Container(width: 1, height: 30, color: Colors.grey[300]),
+                    _buildInfoChip(Icons.star, "Role", "Secretary"),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -213,33 +192,19 @@ class SecretaryDashboard extends StatelessWidget {
             decoration: const BoxDecoration(color: Colors.teal),
             accountName: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             accountEmail: const Text("NHG Secretary"),
-            currentAccountPicture: const CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Icon(Icons.admin_panel_settings, size: 40, color: Colors.teal),
-            ),
+            currentAccountPicture: const CircleAvatar(backgroundColor: Colors.white, child: Icon(Icons.admin_panel_settings, size: 40, color: Colors.teal)),
           ),
-          ListTile(
-            leading: const Icon(Icons.dashboard, color: Colors.blueGrey),
-            title: const Text('Dashboard'),
-            onTap: () => Navigator.pop(context),
-          ),
+          ListTile(leading: const Icon(Icons.dashboard, color: Colors.blueGrey), title: const Text('Dashboard'), onTap: () => Navigator.pop(context)),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
             title: const Text('Logout', style: TextStyle(color: Colors.red)),
             onTap: () async {
-              // SECURITY FIX: Wipe biometric vault on logout
               const secureStorage = FlutterSecureStorage();
               await secureStorage.deleteAll(); 
-              
               final prefs = await SharedPreferences.getInstance();
               await prefs.setBool('biometric', false);
-
               if (context.mounted) {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
-                  (Route<dynamic> route) => false,
-                );
+                Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginPage()), (route) => false);
               }
             },
           ),
@@ -251,13 +216,7 @@ class SecretaryDashboard extends StatelessWidget {
   Widget _buildInfoChip(IconData icon, String label, String value) {
     return Column(
       children: [
-        Row(
-          children: [
-            Icon(icon, size: 16, color: Colors.teal),
-            const SizedBox(width: 5),
-            Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-          ],
-        ),
+        Row(children: [Icon(icon, size: 16, color: Colors.teal), const SizedBox(width: 5), Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12))]),
         const SizedBox(height: 4),
         Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blueGrey)),
       ],

@@ -1171,7 +1171,7 @@
     },
     {
       "name": "native_toolchain_c",
-      "version": "0.17.4",
+      "version": "0.17.5",
       "dependencies": [
         "code_assets",
         "glob",
@@ -1183,7 +1183,7 @@
     },
     {
       "name": "hooks",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "dependencies": [
         "collection",
         "crypto",
