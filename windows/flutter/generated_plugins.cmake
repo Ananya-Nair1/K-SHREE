@@ -5,6 +5,12 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   app_links
   file_selector_windows
+<<<<<<< Updated upstream
+=======
+  flutter_secure_storage_windows
+  geolocator_windows
+  local_auth_windows
+>>>>>>> Stashed changes
   printing
   url_launcher_windows
 )
