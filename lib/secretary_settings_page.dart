@@ -1,9 +1,12 @@
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
-import 'login_page.dart'; // Ensure this points to your actual login page
+import 'login_page.dart';
+import 'secretary_profile_page.dart';
+import 'secretary_edit_profile_page.dart';
 
 class SettingsPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -22,9 +25,6 @@ class _SettingsPageState extends State<SettingsPage> {
   final LocalAuthentication _localAuth = LocalAuthentication();
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
-  // ==========================================
-  // SIMPLE TRANSLATION DICTIONARY
-  // ==========================================
   final Map<String, String> _malayalamTranslations = {
     'Secretary Settings': 'സെക്രട്ടറി ക്രമീകരണങ്ങൾ',
     'Profile & Security': 'പ്രൊഫൈലും സുരക്ഷയും',
@@ -74,10 +74,9 @@ class _SettingsPageState extends State<SettingsPage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('language', lang);
     setState(() => _currentLanguage = lang);
-    Navigator.pop(context);
+    if (mounted) Navigator.pop(context);
   }
 
-  // Helper to extract ID for DB operations
   String get _userAadhar => widget.userData['aadhar_number']?.toString() ?? '';
 
   @override
@@ -103,7 +102,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   title: _t("View Profile"),
                   subtitle: _t("View your full account details"),
                   onTap: () {
-                    // TODO: Navigate to Secretary Profile Page
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => SecretaryProfilePage(secretaryId: _userAadhar)),
+                    );
                   },
                 ),
                 const Divider(height: 1),
@@ -111,8 +113,22 @@ class _SettingsPageState extends State<SettingsPage> {
                   icon: Icons.edit_outlined,
                   title: _t("Edit Profile"),
                   subtitle: _t("Update your personal information"),
-                  onTap: () {
-                    // TODO: Navigate to Edit Profile Page
+                  onTap: () async {
+                    try {
+                      final profile = await Supabase.instance.client
+                          .from('Registered_Members')
+                          .select()
+                          .eq('aadhar_number', _userAadhar)
+                          .single();
+                      if (context.mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => SecretaryEditProfilePage(currentProfile: profile)),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) _showSnackBar("Error loading profile details");
+                    }
                   },
                 ),
                 const Divider(height: 1),
@@ -160,9 +176,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ],
             ),
-
             const SizedBox(height: 25),
-
             _buildSectionHeader(_t("App Preferences")),
             _buildSettingsCard(
               children: [
@@ -182,9 +196,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ],
             ),
-
             const SizedBox(height: 25),
-
             _buildSectionHeader(_t("Help & Legal")),
             _buildSettingsCard(
               children: [
@@ -199,19 +211,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   title: _t("Contact ADS"),
                   onTap: () => _showContactSupportDialog(),
                 ),
-                const Divider(height: 1),
-                _buildListTile(
-                  icon: Icons.gavel,
-                  title: _t("Kudumbashree Bylaws"),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const SecretaryBylawsPage()));
-                  },
-                ),
               ],
             ),
-
             const SizedBox(height: 30),
-
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -231,7 +233,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   await _secureStorage.deleteAll();
                   final prefs = await SharedPreferences.getInstance();
                   await prefs.setBool('biometric', false);
-
                   if (context.mounted) {
                     Navigator.pushAndRemoveUntil(
                       context,
@@ -242,9 +243,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
               ),
             ),
-
             const SizedBox(height: 20),
-
             const Center(
               child: Text("K-SHREE App v1.0.0\nMade in Kerala", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 12)),
             ),
@@ -254,8 +253,6 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
   }
-
-  // --- UI Helpers ---
 
   Widget _buildSectionHeader(String title) {
     return Padding(
@@ -395,10 +392,6 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-// =========================================================================
-// Dialog Widgets
-// =========================================================================
-
 class _UpdatePhoneDialog extends StatefulWidget {
   final String aadharNumber;
   const _UpdatePhoneDialog({Key? key, required this.aadharNumber}) : super(key: key);
@@ -412,26 +405,28 @@ class _UpdatePhoneDialogState extends State<_UpdatePhoneDialog> {
 
   Future<void> _updatePhone() async {
     if (widget.aadharNumber.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error: User ID missing')));
+      if (mounted) _showError('User ID missing');
       return;
     }
-
     setState(() => _isLoading = true);
     try {
       await Supabase.instance.client
           .from('Registered_Members')
           .update({'phone_number': _phoneController.text})
           .eq('aadhar_number', widget.aadharNumber);
-          
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Phone number updated!'), backgroundColor: Colors.green));
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) _showError('Error updating phone number');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
   }
 
   @override
@@ -465,10 +460,9 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
 
   Future<void> _updatePassword() async {
     if (widget.aadharNumber.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error: User ID missing')));
+      if (mounted) _showError('User ID missing');
       return;
     }
-
     setState(() => _isLoading = true);
     try {
       final res = await Supabase.instance.client
@@ -476,25 +470,27 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
           .select('password')
           .eq('aadhar_number', widget.aadharNumber)
           .maybeSingle();
-          
       if (res != null && res['password'] == _currentController.text) {
         await Supabase.instance.client
             .from('Registered_Members')
             .update({'password': _newController.text})
             .eq('aadhar_number', widget.aadharNumber);
-            
         if (mounted) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password changed!'), backgroundColor: Colors.green));
         }
       } else {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Incorrect password')));
+        if (mounted) _showError('Incorrect current password');
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) _showError('Error updating password');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
   }
 
   @override
@@ -512,28 +508,6 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
         TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
         ElevatedButton(onPressed: _isLoading ? null : _updatePassword, child: const Text("Save")),
       ],
-    );
-  }
-}
-
-class SecretaryBylawsPage extends StatelessWidget {
-  const SecretaryBylawsPage({Key? key}) : super(key: key);
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Secretary Responsibilities"), backgroundColor: Colors.teal),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: const [
-          Text("1. Record Keeping", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal)),
-          SizedBox(height: 10),
-          Text("The secretary is responsible for accurately logging weekly thrift deposits and loan disbursements."),
-          Divider(height: 40),
-          Text("2. Meeting Moderation", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal)),
-          SizedBox(height: 10),
-          Text("Ensure all members have an equal opportunity to speak and vote on financial matters during weekly meetings."),
-        ],
-      ),
     );
   }
 }

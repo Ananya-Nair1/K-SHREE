@@ -14,6 +14,7 @@ import 'member_settings_page.dart';
 import 'member_loans_page.dart';
 import 'member_schemes_page.dart'; 
 import 'member_election_page.dart'; 
+import 'member_trainings_page.dart'; 
 
 class MemberDashboard extends StatefulWidget {
   final Member member;
@@ -26,13 +27,43 @@ class MemberDashboard extends StatefulWidget {
 
 class _MemberDashboardState extends State<MemberDashboard> {
   final supabase = Supabase.instance.client;
+  
   String _latestNews = "Loading latest unit updates...";
   int _unreadNotifications = 0;
+  String _unit = "Loading...";
+  String _ward = "Loading...";
 
   @override
   void initState() {
     super.initState();
-    _fetchUnitNews();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    await _fetchMemberDetails();
+    if (_unit != "Loading..." && _unit != "N/A") {
+      await _fetchUnitNews();
+    }
+  }
+
+  Future<void> _fetchMemberDetails() async {
+    try {
+      final userId = widget.member.userId;
+      final response = await supabase
+          .from('Registered_Members')
+          .select('unit_number, ward') 
+          .eq('aadhar_number', userId!)
+          .maybeSingle();
+
+      if (response != null && mounted) {
+        setState(() {
+          _unit = response['unit_number']?.toString() ?? 'N/A';
+          _ward = response['ward']?.toString() ?? 'N/A';
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() { _unit = 'N/A'; _ward = 'N/A'; });
+    }
   }
 
   Future<void> _fetchUnitNews() async {
@@ -40,37 +71,65 @@ class _MemberDashboardState extends State<MemberDashboard> {
       final response = await supabase
           .from('unit_notifications')
           .select()
-          .eq('unit_number', '4') 
+          .eq('unit_number', _unit) 
+          .ilike('target_audience', '%All Members%')
           .order('created_at', ascending: false);
 
       if (response != null && (response as List).isNotEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        final lastSeenString = prefs.getString('last_seen_notifications_$_unit');
+        
+        int unreadCount = 0;
+        if (lastSeenString == null || lastSeenString.isEmpty) {
+          unreadCount = response.length;
+        } else {
+          final lastSeenDate = DateTime.tryParse(lastSeenString) ?? DateTime.fromMillisecondsSinceEpoch(0);
+          for (var item in response) {
+            final itemDateStr = item['created_at']?.toString();
+            if (itemDateStr != null) {
+              final itemDate = DateTime.tryParse(itemDateStr);
+              if (itemDate != null && itemDate.isAfter(lastSeenDate)) unreadCount++;
+            }
+          }
+        }
+
+        if (mounted) {
+          setState(() {
+            _latestNews = "${response[0]['title']}: ${response[0]['message'] ?? ''}";
+            _unreadNotifications = unreadCount;
+          });
+        }
+      } else if (mounted) {
         setState(() {
-          _latestNews = response[0]['title'] + ": " + (response[0]['message'] ?? "");
-          _unreadNotifications = response.length;
-        });
-      } else {
-        setState(() {
-          _latestNews = "No active announcements for Unit 4.";
+          _latestNews = "No active announcements for Unit $_unit.";
           _unreadNotifications = 0;
         });
       }
     } catch (e) {
-      setState(() => _latestNews = "Welcome to K-SHREE Dashboard");
+      if (mounted) setState(() => _latestNews = "Welcome to K-SHREE Dashboard");
     }
+  }
+
+  void _navigateIfReady(BuildContext context, Widget page) {
+    if (_unit == "Loading...") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Account data still syncing..."), behavior: SnackBarBehavior.floating)
+      );
+      return;
+    }
+    Navigator.push(context, MaterialPageRoute(builder: (context) => page));
   }
 
   @override
   Widget build(BuildContext context) {
     final String name = widget.member.fullName ?? 'Member';
     final String userId = widget.member.userId ?? 'N/A';
-    final String unit = '4'; 
-    final String ward = 'Ward 2'; 
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F6), 
       appBar: AppBar(
         title: const Text('K-SHREE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.teal, // REVERTED: Back to Teal
+        backgroundColor: Colors.teal,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
@@ -78,17 +137,15 @@ class _MemberDashboardState extends State<MemberDashboard> {
             children: [
               IconButton(
                 icon: const Icon(Icons.notifications_none_rounded, size: 28),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => NotificationsPage(unitNumber: unit)),
-                  );
+                onPressed: () async {
+                  if (_unit == "Loading...") return;
+                  await Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationsPage(unitNumber: _unit)));
+                  _fetchUnitNews(); // Refresh badge when back
                 },
               ),
               if (_unreadNotifications > 0)
                 Positioned(
-                  right: 8,
-                  top: 8,
+                  right: 8, top: 8,
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
@@ -102,29 +159,25 @@ class _MemberDashboardState extends State<MemberDashboard> {
       ),
       drawer: _buildDrawer(context, name, widget.member.photoUrl),
       body: RefreshIndicator(
-        onRefresh: _fetchUnitNews,
+        onRefresh: _loadDashboardData,
         color: Colors.teal,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeaderSection(name, userId, unit, ward),
-              _buildNewsTicker(_latestNews, unit),
-              const SizedBox(height: 25),
+              _buildHeaderSection(name, userId, _unit, _ward),
+              _buildNewsTicker(_latestNews, _unit),
               const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
+                padding: EdgeInsets.fromLTRB(20, 30, 20, 15),
                 child: Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
               ),
-              const SizedBox(height: 15),
               _buildQuickActions(context, userId),
-              const SizedBox(height: 30),
               const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
+                padding: EdgeInsets.fromLTRB(20, 30, 20, 15),
                 child: Text("My Services", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
               ),
-              const SizedBox(height: 15),
-              _buildServicesGrid(context, userId, name, unit),
+              _buildServicesGrid(context, userId, name, _unit),
               const SizedBox(height: 30),
             ],
           ),
@@ -133,25 +186,16 @@ class _MemberDashboardState extends State<MemberDashboard> {
     );
   }
 
-  // --- COMPONENT HELPERS ---
-
   Widget _buildHeaderSection(String name, String userId, String unit, String ward) {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Container(
-          height: 120, width: double.infinity,
-          decoration: const BoxDecoration(color: Colors.teal, borderRadius: BorderRadius.vertical(bottom: Radius.circular(30))),
-        ),
+        Container(height: 120, width: double.infinity, decoration: const BoxDecoration(color: Colors.teal, borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)))),
         Padding(
           padding: const EdgeInsets.only(top: 40, left: 20, right: 20),
           child: Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
-            ),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))]),
             child: Column(
               children: [
                 Row(
@@ -166,7 +210,7 @@ class _MemberDashboardState extends State<MemberDashboard> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                          Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey), maxLines: 1, overflow: TextOverflow.ellipsis),
                           Text('ID: $userId', style: const TextStyle(color: Colors.grey, fontSize: 12)),
                         ],
                       ),
@@ -201,25 +245,15 @@ class _MemberDashboardState extends State<MemberDashboard> {
         mainAxisSpacing: 15,
         childAspectRatio: 0.9,
         children: [
-          _buildModernGridItem(context, 'Meetings', Icons.groups, Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MemberMeetingsPage(unitNumber: unit)))),
-          _buildModernGridItem(context, 'Savings', Icons.savings, Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MemberSavingsPage(memberId: userId)))),
-          _buildModernGridItem(context, 'My Loans', Icons.monetization_on, Colors.green, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MemberLoansPage(memberId: userId)))),
-          _buildModernGridItem(context, 'Schemes', Icons.account_balance, Colors.blue, onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => MemberSchemesPage(memberId: userId, memberName: name)));
-          }),
-          _buildModernGridItem(context, 'Trainings', Icons.school, Colors.orange),
-          _buildModernGridItem(context, 'Complaints', Icons.report_problem, Colors.redAccent, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MemberGrievancePage(memberId: userId, unitNumber: unit)))),
-          
-          // Election Navigation Included
-          _buildModernGridItem(context, 'Elections', Icons.how_to_reg, Colors.purple, onTap: () {
-            Navigator.push(
-              context, 
-              MaterialPageRoute(builder: (context) => MemberElectionPage(unitNumber: unit, currentMemberId: userId))
-            );
-          }),
-
-          _buildModernGridItem(context, 'Profile', Icons.person, Colors.pink, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MemberProfilePage(memberId: userId)))),
-          _buildModernGridItem(context, 'Settings', Icons.settings, Colors.grey, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MemberSettingsPage(memberId: userId)))),
+          _buildModernGridItem(context, 'Attendance', Icons.fact_check, Colors.indigo, onTap: () => _navigateIfReady(context, MemberMeetingsPage(unitNumber: unit, memberId: userId))),
+          _buildModernGridItem(context, 'Savings', Icons.savings, Colors.teal, onTap: () => _navigateIfReady(context, MemberSavingsPage(memberId: userId))),
+          _buildModernGridItem(context, 'Loans', Icons.monetization_on, Colors.green, onTap: () => _navigateIfReady(context, MemberLoansPage(memberId: userId))),
+          _buildModernGridItem(context, 'Schemes', Icons.account_balance, Colors.blue, onTap: () => _navigateIfReady(context, MemberSchemesPage(memberId: userId, memberName: name))),
+          _buildModernGridItem(context, 'Trainings', Icons.school, Colors.orange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MemberTrainingsPage()))),
+          _buildModernGridItem(context, 'Grievance', Icons.report_problem, Colors.redAccent, onTap: () => _navigateIfReady(context, MemberGrievancePage(memberId: userId, unitNumber: unit))),
+          _buildModernGridItem(context, 'Elections', Icons.how_to_reg, Colors.purple, onTap: () => _navigateIfReady(context, MemberElectionPage(unitNumber: unit, currentMemberId: userId))),
+          _buildModernGridItem(context, 'Profile', Icons.person, Colors.pink, onTap: () => _navigateIfReady(context, MemberProfilePage(memberId: userId))),
+          _buildModernGridItem(context, 'Settings', Icons.settings, Colors.grey, onTap: () => _navigateIfReady(context, MemberSettingsPage(memberId: userId))),
         ],
       ),
     );
@@ -227,32 +261,20 @@ class _MemberDashboardState extends State<MemberDashboard> {
 
   Widget _buildNewsTicker(String news, String unit) {
     return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => NotificationsPage(unitNumber: unit)),
-        );
+      onTap: () async {
+        if (unit == "Loading...") return;
+        await Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationsPage(unitNumber: unit)));
+        _fetchUnitNews();
       },
       child: Container(
         margin: const EdgeInsets.only(top: 25, left: 20, right: 20),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.amber.shade50,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.amber.shade200),
-        ),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.amber.shade200)),
         child: Row(
           children: [
             Icon(Icons.campaign, color: Colors.amber.shade800, size: 22),
             const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                news,
-                style: const TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w500),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
+            Expanded(child: Text(news, style: const TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis)),
             Icon(Icons.arrow_forward_ios, size: 12, color: Colors.amber.shade800),
           ],
         ),
@@ -265,25 +287,9 @@ class _MemberDashboardState extends State<MemberDashboard> {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          Expanded(
-            child: _buildQuickActionCard(
-              context,
-              title: 'My Passbook',
-              icon: Icons.menu_book,
-              color: Colors.blue,
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MemberSavingsPage(memberId: userId))),
-            ),
-          ),
+          Expanded(child: _buildQuickActionCard(context, title: 'My Passbook', icon: Icons.menu_book, color: Colors.blue, onTap: () => _navigateIfReady(context, MemberSavingsPage(memberId: userId)))),
           const SizedBox(width: 15),
-          Expanded(
-            child: _buildQuickActionCard(
-              context,
-              title: 'Apply for Loan',
-              icon: Icons.account_balance_wallet,
-              color: Colors.orange,
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MemberLoansPage(memberId: userId))),
-            ),
-          ),
+          Expanded(child: _buildQuickActionCard(context, title: 'Apply Loan', icon: Icons.account_balance_wallet, color: Colors.orange, onTap: () => _navigateIfReady(context, MemberLoansPage(memberId: userId)))),
         ],
       ),
     );
@@ -304,20 +310,13 @@ class _MemberDashboardState extends State<MemberDashboard> {
               child: (photoUrl == null || photoUrl.isEmpty) ? const Icon(Icons.person, size: 40, color: Colors.teal) : null,
             ),
           ),
-          ListTile(leading: const Icon(Icons.dashboard, color: Colors.blueGrey), title: const Text('Dashboard'), onTap: () => Navigator.pop(context)),
-          ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text('Logout', style: TextStyle(color: Colors.red)),
-            onTap: () async {
-              const secureStorage = FlutterSecureStorage();
-              await secureStorage.deleteAll(); 
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.setBool('biometric', false);
-              if (context.mounted) {
-                Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginPage()), (route) => false);
-              }
-            },
-          ),
+          ListTile(leading: const Icon(Icons.logout, color: Colors.red), title: const Text('Logout', style: TextStyle(color: Colors.red)), onTap: () async {
+            const secureStorage = FlutterSecureStorage();
+            await secureStorage.deleteAll(); 
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool('biometric', false);
+            if (context.mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginPage()), (route) => false);
+          }),
         ],
       ),
     );
@@ -337,12 +336,7 @@ class _MemberDashboardState extends State<MemberDashboard> {
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
-          border: Border.all(color: color.withOpacity(0.2)),
-        ),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: color.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))], border: Border.all(color: color.withOpacity(0.2))),
         child: Column(children: [CircleAvatar(backgroundColor: color.withOpacity(0.1), radius: 25, child: Icon(icon, color: color, size: 28)), const SizedBox(height: 12), Text(title, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey[800], fontSize: 13))]),
       ),
     );

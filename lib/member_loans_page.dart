@@ -66,7 +66,7 @@ class _MemberLoansPageState extends State<MemberLoansPage> {
         'principal_amount': double.parse(_amountController.text),
         'outstanding_amount': double.parse(_amountController.text),
         'remarks': _reasonController.text.trim(),
-        'status': 'Pending Discussion (Next Meeting)', 
+        'status': 'Pending at NHG', 
       });
 
       if (mounted) {
