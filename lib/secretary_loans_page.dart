@@ -75,12 +75,18 @@ class _ApplyLoanTabState extends State<_ApplyLoanTab> {
     try {
       final double principal = double.parse(_principalController.text);
       final double emi = double.parse(_emiController.text);
+      
+      // Extract full location hierarchy
       final String memberId = widget.userData['aadhar_number']?.toString() ?? 'UNKNOWN';
       final String unitNo = widget.userData['unit_number']?.toString() ?? '';
+      final String panchayat = widget.userData['panchayat']?.toString() ?? '';
+      final String ward = (widget.userData['ward'] ?? widget.userData['ward_number'])?.toString() ?? '';
 
       await Supabase.instance.client.from('loans').insert({
         'member_id': memberId,
-        'unit_number': unitNo, // Saved so it shows up in the Unit's Requests tab
+        'panchayat': panchayat,     // NEW: Added Panchayat
+        'ward': ward,               // NEW: Added Ward
+        'unit_number': unitNo,      // Preserved Unit Number
         'loan_type': _selectedType,
         'principal_amount': principal,
         'outstanding_amount': principal,
@@ -218,6 +224,8 @@ class _ViewRequestsTabState extends State<_ViewRequestsTab> {
   Widget build(BuildContext context) {
     final String myAadhar = widget.userData['aadhar_number']?.toString() ?? '';
     final String myUnit = widget.userData['unit_number']?.toString() ?? '';
+    final String myPanchayat = widget.userData['panchayat']?.toString() ?? '';
+    final String myWard = (widget.userData['ward'] ?? widget.userData['ward_number'])?.toString() ?? '';
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -225,8 +233,8 @@ class _ViewRequestsTabState extends State<_ViewRequestsTab> {
         await Future.delayed(const Duration(milliseconds: 500));
       },
       child: StreamBuilder<List<Map<String, dynamic>>>(
-        // FIXED: Chaining multiple filters is not allowed on streams.
-        // We filter by unit_number and then use Dart to exclude self.
+        // We fetch the stream based on the unit, and use Dart filtering for Panchayat/Ward
+        // to ensure maximum compatibility with the Supabase Realtime Stream engine.
         stream: Supabase.instance.client
             .from('loans')
             .stream(primaryKey: ['id'])
@@ -236,9 +244,15 @@ class _ViewRequestsTabState extends State<_ViewRequestsTab> {
           if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
           if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
 
-          // Filter out the secretary's own loan applications using Dart
           final allData = snapshot.data ?? [];
-          final requests = allData.where((item) => item['member_id'].toString() != myAadhar).toList();
+          
+          // Secure Dart-side Filtering: Match Panchayat, Match Ward, Exclude Self
+          final requests = allData.where((item) {
+            final isNotMe = item['member_id'].toString() != myAadhar;
+            final isSamePanchayat = item['panchayat']?.toString() == myPanchayat;
+            final isSameWard = item['ward']?.toString() == myWard;
+            return isNotMe && isSamePanchayat && isSameWard;
+          }).toList();
 
           if (requests.isEmpty) {
             return const SingleChildScrollView(
@@ -292,7 +306,7 @@ class _LoanRequestCardState extends State<_LoanRequestCard> {
   @override
   Widget build(BuildContext context) {
     final status = widget.req['status'].toString();
-    final isActionable = status.toLowerCase().contains('pending');
+    final isActionable = status.toLowerCase().contains('pending at nhg');
 
     return Container(
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))]),

@@ -60,13 +60,27 @@ class _MemberLoansPageState extends State<MemberLoansPage> {
     try {
       showDialog(context: context, barrierDismissible: false, builder: (context) => const Center(child: CircularProgressIndicator()));
 
+      // 1. Fetch member's geographic details to route the request properly
+      final memberProfile = await supabase
+          .from('Registered_Members')
+          .select('panchayat, ward, unit_number')
+          .eq('aadhar_number', widget.memberId)
+          .maybeSingle();
+
+      if (memberProfile == null) throw Exception("Could not verify member profile data.");
+
+      // 2. Insert with full location tracking so the correct Secretary sees it
       await supabase.from('loans').insert({
         'member_id': widget.memberId,
+        'panchayat': memberProfile['panchayat']?.toString() ?? '',
+        'ward': memberProfile['ward']?.toString() ?? '',
+        'unit_number': memberProfile['unit_number']?.toString() ?? '',
         'loan_type': _selectedLoanSource,
         'principal_amount': double.parse(_amountController.text),
         'outstanding_amount': double.parse(_amountController.text),
         'remarks': _reasonController.text.trim(),
         'status': 'Pending at NHG', 
+        'applied_date': DateTime.now().toIso8601String(),
       });
 
       if (mounted) {
@@ -74,6 +88,7 @@ class _MemberLoansPageState extends State<MemberLoansPage> {
         Navigator.pop(context); // Close sheet
         _amountController.clear();
         _reasonController.clear();
+        _selectedLoanSource = null;
         _refreshLoans();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Request added to next NHG Meeting Agenda'),
@@ -214,7 +229,7 @@ class _MemberLoansPageState extends State<MemberLoansPage> {
     final status = loan['status'];
     Color statusColor = Colors.orange;
     if (status == 'Active') statusColor = Colors.green;
-    if (status == 'Rejected') statusColor = Colors.red;
+    if (status.toString().toLowerCase().contains('rejected')) statusColor = Colors.red;
     if (status == 'Closed') statusColor = Colors.grey;
 
     return Card(

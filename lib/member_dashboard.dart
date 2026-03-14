@@ -32,6 +32,7 @@ class _MemberDashboardState extends State<MemberDashboard> {
   int _unreadNotifications = 0;
   String _unit = "Loading...";
   String _ward = "Loading...";
+  String _panchayat = "Loading...";
 
   @override
   void initState() {
@@ -51,7 +52,7 @@ class _MemberDashboardState extends State<MemberDashboard> {
       final userId = widget.member.userId;
       final response = await supabase
           .from('Registered_Members')
-          .select('unit_number, ward') 
+          .select('unit_number, ward, panchayat')
           .eq('aadhar_number', userId!)
           .maybeSingle();
 
@@ -59,20 +60,30 @@ class _MemberDashboardState extends State<MemberDashboard> {
         setState(() {
           _unit = response['unit_number']?.toString() ?? 'N/A';
           _ward = response['ward']?.toString() ?? 'N/A';
+          _panchayat = response['panchayat']?.toString() ?? 'N/A';
         });
       }
     } catch (e) {
-      if (mounted) setState(() { _unit = 'N/A'; _ward = 'N/A'; });
+      if (mounted) setState(() { _unit = 'N/A'; _ward = 'N/A'; _panchayat = 'N/A'; });
     }
   }
 
   Future<void> _fetchUnitNews() async {
     try {
-      final response = await supabase
-          .from('unit_notifications')
-          .select()
-          .eq('unit_number', _unit) 
-          .ilike('target_audience', '%All Members%')
+      var query = supabase.from('unit_notifications').select();
+
+      if (_panchayat.isNotEmpty && _panchayat != 'N/A') {
+        query = query.eq('panchayat', _panchayat);
+      }
+      if (_ward.isNotEmpty && _ward != 'N/A') {
+        query = query.eq('ward', _ward);
+      }
+      if (_unit.isNotEmpty && _unit != 'N/A') {
+        query = query.eq('unit_number', _unit);
+      }
+
+      final response = await query
+          .or('target_audience.ilike.%All Members%,target_audience.ilike.%all members%')
           .order('created_at', ascending: false);
 
       if (response != null && (response as List).isNotEmpty) {
@@ -139,8 +150,13 @@ class _MemberDashboardState extends State<MemberDashboard> {
                 icon: const Icon(Icons.notifications_none_rounded, size: 28),
                 onPressed: () async {
                   if (_unit == "Loading...") return;
-                  await Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationsPage(unitNumber: _unit)));
-                  _fetchUnitNews(); // Refresh badge when back
+                  await Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationsPage(
+  userData: {
+    'unit_number': _unit, // or unit, depending on the line
+    'ward': _ward,        // your ward variable
+    'panchayat': _panchayat // your panchayat variable
+  }
+)));                  _fetchUnitNews(); // Refresh badge when back
                 },
               ),
               if (_unreadNotifications > 0)
@@ -263,7 +279,13 @@ class _MemberDashboardState extends State<MemberDashboard> {
     return InkWell(
       onTap: () async {
         if (unit == "Loading...") return;
-        await Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationsPage(unitNumber: unit)));
+        await Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationsPage(
+  userData: {
+    'unit_number': _unit, // or unit, depending on the line
+    'ward': _ward,        // your ward variable
+    'panchayat': _panchayat // your panchayat variable
+  }
+)));
         _fetchUnitNews();
       },
       child: Container(

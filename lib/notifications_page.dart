@@ -4,14 +4,20 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class NotificationsPage extends StatelessWidget {
-  final String unitNumber;
+  final Map<String, dynamic> userData; 
 
-  const NotificationsPage({Key? key, required this.unitNumber}) : super(key: key);
+  const NotificationsPage({Key? key, required this.userData}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final supabase = Supabase.instance.client;
     const Color primaryColor = Colors.teal; 
+    
+    // Extracting full geographic location
+    final String unitNumber = userData['unit_number']?.toString() ?? '';
+    // Safely parsing ward as an integer to match DB schema (int8)
+    final int? wardId = int.tryParse(userData['ward']?.toString() ?? userData['ward_number']?.toString() ?? '');
+    final String panchayat = userData['panchayat']?.toString() ?? '';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F6),
@@ -22,13 +28,25 @@ class NotificationsPage extends StatelessWidget {
         elevation: 0,
       ),
       body: FutureBuilder(
-        future: supabase
-            .from('unit_notifications')
-            .select()
-            .eq('unit_number', unitNumber)
-            // Use ilike to be safe against extra spaces or case differences
-            .ilike('target_audience', '%All Members%') 
-            .order('created_at', ascending: false),
+        future: (() {
+          var query = supabase.from('unit_notifications').select();
+
+          // Apply location filters
+          if (panchayat.isNotEmpty && panchayat != 'N/A') {
+            query = query.ilike('panchayat', panchayat); 
+          }
+          if (wardId != null) {
+            query = query.eq('ward', wardId);
+          }
+          if (unitNumber.isNotEmpty && unitNumber != 'N/A') {
+            query = query.eq('unit_number', unitNumber);
+          }
+
+          // FIXED: Use direct eq for cleaner matching and order by time
+          return query
+            .eq('target_audience', 'All Members')
+            .order('created_at', ascending: false);
+        })(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: primaryColor));
@@ -62,18 +80,23 @@ class NotificationsPage extends StatelessWidget {
               itemCount: notifications.length,
               itemBuilder: (context, index) {
                 final item = notifications[index];
-                final bool isUrgent = item['is_urgent']?.toString() == 'true' || item['is_urgent'] == true;
+                
+                // Safe check for boolean or string boolean
+                final bool isUrgent = item['is_urgent'] == true || item['is_urgent']?.toString().toLowerCase() == 'true';
 
                 return Card(
                   elevation: 2,
                   margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                    side: isUrgent ? const BorderSide(color: Colors.red, width: 1.5) : BorderSide.none,
+                  ),
                   child: ListTile(
                     contentPadding: const EdgeInsets.all(16),
                     leading: CircleAvatar(
                       backgroundColor: isUrgent ? Colors.red.withOpacity(0.1) : Colors.teal.withOpacity(0.1),
                       child: Icon(
-                        isUrgent ? Icons.priority_high : Icons.campaign,
+                        isUrgent ? Icons.crisis_alert : Icons.campaign,
                         color: isUrgent ? Colors.red : Colors.teal.shade800,
                       ),
                     ),
@@ -89,7 +112,11 @@ class NotificationsPage extends StatelessWidget {
                           children: [
                             Text(_formatDate(item['created_at'].toString()), style: const TextStyle(fontSize: 10, color: Colors.grey)),
                             if (isUrgent)
-                              const Text("URGENT", style: TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold)),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                                child: const Text("URGENT", style: TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold)),
+                              ),
                           ],
                         ),
                       ],

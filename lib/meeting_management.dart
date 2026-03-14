@@ -93,8 +93,9 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
   String? _selectedVenue;
   List<Map<String, dynamic>> _savedVenues = [];
   bool _isLoading = false;
+  bool _isFetchingGPS = false; // Tracks GPS loading state
   
-  // Coordinates picked from map
+  // Coordinates picked from map or GPS
   double? _pickedLat;
   double? _pickedLon;
 
@@ -113,9 +114,66 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
     });
   }
 
+  // --- NEW: Fetch Current GPS Location Method ---
+  Future<void> _fetchCurrentGPS() async {
+    setState(() => _isFetchingGPS = true);
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) throw Exception("Please enable GPS in phone settings.");
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) throw Exception("Location permission denied.");
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception("Location permissions are permanently denied.");
+      }
+
+      Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      
+      setState(() {
+        _pickedLat = pos.latitude;
+        _pickedLon = pos.longitude;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ Current Location Captured!"), backgroundColor: Colors.green)
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll("Exception: ", "")), backgroundColor: Colors.red)
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isFetchingGPS = false);
+    }
+  }
+
   Future<void> _scheduleMeeting() async {
     if (!_formKey.currentState!.validate() || _selectedDate == null || _selectedTime == null || _selectedVenue == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please fill all details!")));
+      return;
+    }
+
+    // Enforce minimum 30-minute notice
+    final selectedDateTime = DateTime(
+      _selectedDate!.year,
+      _selectedDate!.month,
+      _selectedDate!.day,
+      _selectedTime!.hour,
+      _selectedTime!.minute,
+    );
+    final minAllowed = DateTime.now().add(const Duration(minutes: 30));
+    if (selectedDateTime.isBefore(minAllowed)) {
+      final earliest = DateFormat('dd MMM yyyy, hh:mm a').format(minAllowed);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text("Meetings must be scheduled at least 30 minutes in advance. Earliest possible time: $earliest"),
+        backgroundColor: Colors.orange,
+      ));
       return;
     }
 
@@ -164,11 +222,11 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
         'created_by': widget.userData['aadhar_number'].toString(),
       });
 
-      Navigator.pop(context);
+      if (mounted) Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -191,6 +249,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                 items: _savedVenues.map((v) => DropdownMenuItem(value: v['name'] as String, child: Text(v['name']))).toList(),
                 onChanged: (val) => setState(() => _selectedVenue = val),
               ),
+              
               if (_selectedVenue == 'Other') ...[
                 const SizedBox(height: 16),
                 TextFormField(
@@ -198,28 +257,65 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                   decoration: const InputDecoration(labelText: "New Venue Name", border: OutlineInputBorder(), prefixIcon: Icon(Icons.add_business))
                 ),
                 const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    // This opens the Map Picker Page we built using flutter_map
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const MapPickerPage()),
-                    );
-                    if (result != null) {
-                      setState(() {
-                        _pickedLat = result['latitude'];
-                        _pickedLon = result['longitude'];
-                      });
-                    }
-                  },
-                  icon: const Icon(Icons.map_outlined),
-                  label: Text(_pickedLat == null ? "Pick Location on Map" : "Location Locked ✅"),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.teal,
-                    side: const BorderSide(color: Colors.teal),
-                  ),
+                
+                // --- FIXED: Dual Location Buttons ---
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const MapPickerPage()),
+                          );
+                          if (result != null) {
+                            setState(() {
+                              _pickedLat = result['latitude'];
+                              _pickedLon = result['longitude'];
+                            });
+                          }
+                        },
+                        icon: const Icon(Icons.map_outlined, size: 18),
+                        label: const Text("Pick on Map", style: TextStyle(fontSize: 12)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.teal,
+                          side: const BorderSide(color: Colors.teal),
+                          padding: const EdgeInsets.symmetric(vertical: 12)
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _isFetchingGPS ? null : _fetchCurrentGPS,
+                        icon: _isFetchingGPS 
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Icon(Icons.my_location, size: 18, color: Colors.white),
+                        label: const Text("Current GPS", style: TextStyle(fontSize: 12, color: Colors.white)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+                
+                // --- Location Status Indicator ---
+                if (_pickedLat != null)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 10.0),
+                    child: Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.green, size: 16),
+                        SizedBox(width: 6),
+                        Text("Location Locked ✅", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13)),
+                      ],
+                    ),
+                  ),
               ],
+              
               const SizedBox(height: 20),
               const Text("Meeting Agenda", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
               const SizedBox(height: 10),
@@ -260,7 +356,9 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white, padding: const EdgeInsets.all(15)),
                   onPressed: _isLoading ? null : _scheduleMeeting,
-                  child: const Text("Schedule Meeting", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  child: _isLoading 
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text("Schedule Meeting", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],

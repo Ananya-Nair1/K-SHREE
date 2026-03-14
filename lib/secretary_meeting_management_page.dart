@@ -32,7 +32,6 @@ class _ScheduleMeetingPageState extends State<ScheduleMeetingPage> {
     _fetchVenues();
   }
 
-  // --- NEW: Fetch Venues from Database ---
   Future<void> _fetchVenues() async {
     try {
       final unit = widget.userData['unit_number'].toString();
@@ -57,6 +56,31 @@ class _ScheduleMeetingPageState extends State<ScheduleMeetingPage> {
       return;
     }
 
+    // --- STRICT 30-MINUTE TIME GAP CHECK ---
+    final selectedDateTime = DateTime(
+      _selectedDate!.year,
+      _selectedDate!.month,
+      _selectedDate!.day,
+      _selectedTime!.hour,
+      _selectedTime!.minute,
+    );
+
+    final now = DateTime.now();
+    final minAllowed = now.add(const Duration(minutes: 30));
+
+    if (selectedDateTime.isBefore(minAllowed)) {
+      final earliest = DateFormat('dd MMM yyyy, hh:mm a').format(minAllowed);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Meetings must be scheduled at least 30 minutes in advance. Earliest possible time: $earliest"),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        )
+      );
+      return;
+    }
+    // --------------------------------------------
+
     setState(() => _isLoading = true);
 
     try {
@@ -70,7 +94,7 @@ class _ScheduleMeetingPageState extends State<ScheduleMeetingPage> {
         finalLat = pos.latitude;
         finalLon = pos.longitude;
 
-        // --- NEW: Auto-Save new venue for future use ---
+        // Auto-Save new venue for future use
         await supabase.from('saved_venues').insert({
           'unit_number': widget.userData['unit_number'].toString(),
           'name': finalVenueName,
@@ -86,7 +110,7 @@ class _ScheduleMeetingPageState extends State<ScheduleMeetingPage> {
       final formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate!);
       final formattedTime = "${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}:00";
 
-      // Schedule the meeting
+      // 1. Schedule the meeting
       await supabase.from('meetings').insert({
         'panchayat': widget.userData['panchayat']?.toString() ?? '',
         'ward': (widget.userData['ward'] ?? widget.userData['ward_number']).toString(),
@@ -102,8 +126,32 @@ class _ScheduleMeetingPageState extends State<ScheduleMeetingPage> {
         'created_by': widget.userData['aadhar_number'].toString(),
       });
 
+      // 2. Auto-Send Notification to unit_notifications table
+      try {
+        // --- NEW: Convert Ward to Integer safely ---
+        int? wardInt = int.tryParse(widget.userData['ward']?.toString() ?? widget.userData['ward_number']?.toString() ?? '');
+
+        await supabase.from('unit_notifications').insert({
+          'title': '📅 New Meeting Scheduled',
+          'message': 'A new NHG meeting is set for $formattedDate at ${_selectedTime!.format(context)}.\nVenue: $finalVenueName\nAgenda: ${_reasonController.text}',
+          'unit_number': widget.userData['unit_number'].toString(),
+          'ward': wardInt, // <--- FIXED: Now safely passing an integer instead of a string!
+          'panchayat': widget.userData['panchayat']?.toString() ?? '',
+          'created_at': DateTime.now().toIso8601String(), 
+          'target_audience': 'All Members',              
+          'is_urgent': false 
+        });
+      } catch (notifyError) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text("Meeting saved, but notification failed: $notifyError"), 
+            backgroundColor: Colors.red
+          ));
+        }
+      }
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Meeting Scheduled! Venue saved."), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Meeting Scheduled! Members notified."), backgroundColor: Colors.green));
         Navigator.pop(context);
       }
     } catch (e) {
@@ -111,7 +159,7 @@ class _ScheduleMeetingPageState extends State<ScheduleMeetingPage> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
+  } // <-- End of _scheduleMeeting function
 
   Future<Position> _getCurrentLocation() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();

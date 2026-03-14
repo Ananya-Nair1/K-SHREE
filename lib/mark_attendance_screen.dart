@@ -107,26 +107,25 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
 
   Future<void> _submitAttendance() async {
     setState(() => _isSaving = true);
-    
-    // Format data for upsert
-    List<Map<String, dynamic>> attendanceData = _members.map((m) {
-      final aadhar = m['aadhar_number'].toString();
-      return {
-        'meet_id': widget.meetId,
-        'aadhar_number': aadhar,
-        'full_name': m['full_name'], // Added for reporting
-        'status': _attendanceState[aadhar] == true ? 'Present' : 'Absent',
-        'method': _attendanceState[aadhar] == true ? 'Secretary Manual' : 'N/A',
-        'timestamp': DateTime.now().toIso8601String(),
-      };
-    }).toList();
 
     try {
+      // Format data for upsert
+      List<Map<String, dynamic>> attendanceData = _members.map((m) {
+        final aadhar = m['aadhar_number'].toString();
+        return {
+          'meet_id': widget.meetId,
+          'aadhar_number': aadhar,
+          'full_name': m['full_name'], // Added for reporting
+          'status': _attendanceState[aadhar] == true ? 'Present' : 'Absent',
+          'timestamp': DateTime.now().toIso8601String(),
+        };
+      }).toList();
+
       await supabase.from('attendance').upsert(attendanceData, onConflict: 'meet_id, aadhar_number');
-      
+
       // Update meeting status to closed
       await supabase.from('meetings').update({'status': 'HELD'}).eq('meet_id', widget.meetId);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Meeting Closed & Attendance Saved!"), backgroundColor: Colors.teal));
         Navigator.pop(context);

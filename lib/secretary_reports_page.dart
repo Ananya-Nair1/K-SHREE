@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:file_picker/file_picker.dart';
@@ -32,18 +31,21 @@ class _SecretaryReportsPageState extends State<SecretaryReportsPage> {
 
       if (fileBytes == null) return;
 
+      // Upload to Supabase Storage
       await supabase.storage.from('meeting-reports').uploadBinary(
             fileName,
             fileBytes,
             fileOptions: const FileOptions(contentType: 'application/pdf'),
           );
 
+      // Get the public URL
       final String publicUrl = supabase.storage.from('meeting-reports').getPublicUrl(fileName);
 
+      // Save the URL to the meeting row
       await supabase.from('meetings').update({'report': publicUrl}).eq('meet_id', meetingId);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Report uploaded successfully!")));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Report uploaded successfully!"), backgroundColor: Colors.green));
         setState(() {}); // Refresh the view to show the new report status
       }
     } catch (e) {
@@ -68,26 +70,26 @@ class _SecretaryReportsPageState extends State<SecretaryReportsPage> {
       ),
       body: Stack(
         children: [
-          // Using FutureBuilder for more reliable data fetching
           FutureBuilder<List<Map<String, dynamic>>>(
+            // We build the query directly inside the future
             future: supabase
                 .from('meetings')
                 .select()
-                .eq('status', 'held') // Ensuring only 'held' meetings show
+                .eq('status', 'HELD') // FIXED: Must be uppercase 'HELD' to match your database!
                 .eq('created_by', secretaryAadhar)
                 .order('meeting_date', ascending: false),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return const Center(child: CircularProgressIndicator(color: Colors.teal));
               }
               if (snapshot.hasError) {
-                return Center(child: Text("Error: ${snapshot.error}"));
+                return Center(child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
               }
 
               final meetings = snapshot.data ?? [];
 
               if (meetings.isEmpty) {
-                return const Center(child: Text("No meetings marked as 'held' yet."));
+                return const Center(child: Text("No meetings marked as 'HELD' yet.\nMembers must mark attendance first!", textAlign: TextAlign.center));
               }
 
               return ListView.builder(
@@ -127,7 +129,25 @@ class _SecretaryReportsPageState extends State<SecretaryReportsPage> {
             },
           ),
           if (_isUploading)
-            const Center(child: CircularProgressIndicator(color: Colors.teal)),
+            Container(
+              color: Colors.black.withOpacity(0.3),
+              child: const Center(
+                child: Card(
+                  // FIXED: Moved Padding here inside the Card
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(color: Colors.teal),
+                        SizedBox(height: 15),
+                        Text("Uploading PDF...", style: TextStyle(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

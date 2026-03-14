@@ -4,11 +4,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
 
+// Your Imports
 import 'member.dart'; 
 import 'member_dashboard.dart';
 import 'secretary_dashboard.dart'; 
 import 'inter_membership_page.dart';
 import 'ads_chairperson_dashboard.dart';
+import 'cds_dashboard.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -23,28 +25,25 @@ class _LoginPageState extends State<LoginPage> {
   String? selectedRole;
   bool _isLoading = false;
 
-  // Initialize Auth & Storage
   final LocalAuthentication _localAuth = LocalAuthentication();
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
+  // FIXED: Role names now exactly match your database 'designation' strings
   final List<String> roles = [
     "Member", 
     "NHG_SECRETARY", 
     "ADS Member", 
     "ADS_Chairperson", 
     "CDS Member", 
-    "CDS Chairperson"
+    "CDS_Chairperson" 
   ];
 
   @override
   void initState() {
     super.initState();
-    _attemptBiometricAutoLogin(); // Automatically check for biometrics when app opens
+    _attemptBiometricAutoLogin();
   }
 
-  // ==========================================
-  // 1. BIOMETRIC AUTO-LOGIN
-  // ==========================================
   Future<void> _attemptBiometricAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
     final bool isBiometricEnabled = prefs.getBool('biometric') ?? false;
@@ -52,7 +51,6 @@ class _LoginPageState extends State<LoginPage> {
     if (isBiometricEnabled) {
       try {
         final bool canAuthenticate = await _localAuth.canCheckBiometrics || await _localAuth.isDeviceSupported();
-        
         if (canAuthenticate) {
           final bool didAuthenticate = await _localAuth.authenticate(
             localizedReason: 'Scan your fingerprint to open K-SHREE',
@@ -60,7 +58,6 @@ class _LoginPageState extends State<LoginPage> {
           );
 
           if (didAuthenticate) {
-            // Retrieve saved credentials from secure vault
             final savedAadhar = await _secureStorage.read(key: 'aadhar');
             final savedPassword = await _secureStorage.read(key: 'password');
             final savedRole = await _secureStorage.read(key: 'role');
@@ -71,7 +68,7 @@ class _LoginPageState extends State<LoginPage> {
                 passwordController.text = savedPassword;
                 selectedRole = savedRole;
               });
-              await _attemptLogin(isAutoLogin: true); // Proceed to login
+              await _attemptLogin(isAutoLogin: true);
             }
           }
         }
@@ -81,9 +78,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // ==========================================
-  // 2. STANDARD LOGIN LOGIC
-  // ==========================================
   Future<void> _attemptLogin({bool isAutoLogin = false}) async {
     if (!isAutoLogin && !_formKey.currentState!.validate()) return;
 
@@ -93,29 +87,32 @@ class _LoginPageState extends State<LoginPage> {
       final aadhar = userIdController.text.trim();
       final password = passwordController.text.trim();
       
-      // Check Admin Roles (Secretary, ADS Chairperson)
-      if (selectedRole == 'NHG_SECRETARY' || selectedRole == 'ADS_Chairperson') {
+      // 1. Logic for Administrative Roles (Secretary, ADS, CDS)
+      if (selectedRole == 'NHG_SECRETARY' || selectedRole == 'ADS_Chairperson' || selectedRole == 'CDS_Chairperson') {
         final response = await Supabase.instance.client
             .from('Registered_Members')
             .select()
             .eq('aadhar_number', aadhar)
             .eq('password', password)
-            .eq('designation', selectedRole!)
+            .eq('designation', selectedRole!) // FIXED: Using 'designation' column
             .maybeSingle();
 
         if (response != null && mounted) {
-          await _saveCredentialsSecurely(aadhar, password, selectedRole!); // Save to vault
+          await _saveCredentialsSecurely(aadhar, password, selectedRole!);
           
           if (selectedRole == 'NHG_SECRETARY') {
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => SecretaryDashboard(userData: response)));
           } else if (selectedRole == 'ADS_Chairperson') {
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ADSChairpersonDashboard(userData: response)));
+          } else if (selectedRole == 'CDS_Chairperson') {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => CDSDashboard(userData: response)));
           }
         } else {
-          _showErrorDialog("Invalid $selectedRole Credentials. Please check your Aadhar and password.");
+          _showErrorDialog("Login Failed. Ensure you are registered as $selectedRole and your credentials are correct.");
         }
-      } else {
-        // Check General Members
+      } 
+      // 2. Logic for General Members
+      else {
         final response = await Supabase.instance.client
             .from('Registered_Members')
             .select()
@@ -124,17 +121,17 @@ class _LoginPageState extends State<LoginPage> {
             .maybeSingle();
 
         if (response != null && mounted) {
-          final member = Member.fromMap(response);
+          final String userDesignation = response['designation'] ?? 'Member';
           
           if (selectedRole == "Member") {
-            await _saveCredentialsSecurely(aadhar, password, selectedRole!); // Save to vault
-            
+            final member = Member.fromMap(response);
+            await _saveCredentialsSecurely(aadhar, password, selectedRole!);
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => MemberDashboard(member: member)));
           } else {
-             _showErrorDialog("Role mismatch. You are registered as a Member, not $selectedRole.");
+             _showErrorDialog("Role mismatch. Your account is registered as $userDesignation, not $selectedRole.");
           }
         } else {
-          _showErrorDialog("Account not found. Would you like to apply for membership?");
+          _showErrorDialog("Account not found. Please check your Aadhar and password.");
         }
       }
     } catch (e) {
@@ -144,7 +141,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // Save credentials to the device's secure keychain
   Future<void> _saveCredentialsSecurely(String aadhar, String password, String role) async {
     await _secureStorage.write(key: 'aadhar', value: aadhar);
     await _secureStorage.write(key: 'password', value: password);
@@ -214,7 +210,7 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: userIdController, 
-                        keyboardType: TextInputType.number, // Make it easier to type Aadhar
+                        keyboardType: TextInputType.number,
                         decoration: _inputDecoration("Enter ID or Aadhar", Icons.person),
                         validator: (v) => v!.isEmpty ? "Required" : null,
                       ),

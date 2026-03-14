@@ -13,6 +13,7 @@ class MemberGrievancePage extends StatefulWidget {
 
 class _MemberGrievancePageState extends State<MemberGrievancePage> {
   final supabase = Supabase.instance.client;
+  late Future<List<dynamic>> _complaintsFuture;
   
   final _descriptionController = TextEditingController();
   String? _selectedCategory;
@@ -27,6 +28,22 @@ class _MemberGrievancePageState extends State<MemberGrievancePage> {
     "Other"
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _refreshComplaints();
+  }
+
+  void _refreshComplaints() {
+    setState(() {
+      _complaintsFuture = supabase
+          .from('complaints')
+          .select()
+          .eq('member_id', widget.memberId)
+          .order('created_at', ascending: false);
+    });
+  }
+
   Future<void> _submitComplaint() async {
     if (_selectedCategory == null || _descriptionController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a category and add details')));
@@ -40,9 +57,21 @@ class _MemberGrievancePageState extends State<MemberGrievancePage> {
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
+      // 1. Fetch member's geographic details to route the grievance properly
+      final memberProfile = await supabase
+          .from('Registered_Members')
+          .select('panchayat, ward, unit_number')
+          .eq('aadhar_number', widget.memberId)
+          .maybeSingle();
+
+      if (memberProfile == null) throw Exception("Could not verify member profile data.");
+
+      // 2. Insert with full location tracking
       await supabase.from('complaints').insert({
         'member_id': widget.memberId,
-        'unit_number': widget.unitNumber,
+        'panchayat': memberProfile['panchayat']?.toString() ?? '',
+        'ward': memberProfile['ward']?.toString() ?? '',
+        'unit_number': memberProfile['unit_number']?.toString() ?? widget.unitNumber,
         'subject': _selectedCategory,
         'description': _descriptionController.text,
         'status': 'Pending at NHG', 
@@ -52,9 +81,10 @@ class _MemberGrievancePageState extends State<MemberGrievancePage> {
         Navigator.pop(context); // Close loader
         Navigator.pop(context); // Close sheet
         _descriptionController.clear();
-        setState(() { _selectedCategory = null; });
+        _selectedCategory = null;
+        _refreshComplaints(); // Refresh the list
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Complaint submitted to NHG Secretary'), backgroundColor: Colors.teal)
+          const SnackBar(content: Text('Grievance submitted to NHG Secretary'), backgroundColor: Colors.teal)
         );
       }
     } catch (e) {
@@ -85,7 +115,7 @@ class _MemberGrievancePageState extends State<MemberGrievancePage> {
               // MODERN & OVERFLOW-SAFE DROPDOWN
               // ==========================================
               DropdownButtonFormField<String>(
-                isExpanded: true, // FIX: Forces text to truncate instead of overflowing
+                isExpanded: true, 
                 value: _selectedCategory,
                 icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.teal, size: 28),
                 elevation: 4,
@@ -94,7 +124,7 @@ class _MemberGrievancePageState extends State<MemberGrievancePage> {
                   labelText: "Complaint Category",
                   labelStyle: const TextStyle(color: Colors.blueGrey, fontWeight: FontWeight.w500),
                   filled: true,
-                  fillColor: Colors.teal.withOpacity(0.04), // Subtle modern background
+                  fillColor: Colors.teal.withOpacity(0.04), 
                   prefixIcon: Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: Container(
@@ -104,7 +134,7 @@ class _MemberGrievancePageState extends State<MemberGrievancePage> {
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none, // Removes default harsh border
+                    borderSide: BorderSide.none, 
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -175,24 +205,35 @@ class _MemberGrievancePageState extends State<MemberGrievancePage> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: FutureBuilder(
-        future: supabase.from('complaints').select().eq('member_id', widget.memberId).order('created_at', ascending: false),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: Colors.teal));
-          final complaints = snapshot.data as List<dynamic>? ?? [];
+      body: RefreshIndicator(
+        onRefresh: () async => _refreshComplaints(),
+        color: Colors.teal,
+        child: FutureBuilder<List<dynamic>>(
+          future: _complaintsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: Colors.teal));
+            final complaints = snapshot.data ?? [];
 
-          if (complaints.isEmpty) {
-            return const Center(
-              child: Text("No grievances filed yet.", style: TextStyle(color: Colors.grey, fontSize: 16)),
+            if (complaints.isEmpty) {
+              return SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.7,
+                  child: const Center(
+                    child: Text("No grievances filed yet.", style: TextStyle(color: Colors.grey, fontSize: 16)),
+                  ),
+                ),
+              );
+            }
+
+            return ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              itemCount: complaints.length,
+              itemBuilder: (context, index) => _buildComplaintCard(complaints[index]),
             );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: complaints.length,
-            itemBuilder: (context, index) => _buildComplaintCard(complaints[index]),
-          );
-        },
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddComplaintSheet,

@@ -77,7 +77,13 @@ class _SecretaryNotificationsPageState extends State<SecretaryNotificationsPage>
         onPressed: () async {
           await Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => CreateNotificationPage(unitNumber: unitNumber)),
+            MaterialPageRoute(
+              builder: (context) => CreateNotificationPage(
+                unitNumber: unitNumber,
+                ward: widget.userData['ward']?.toString() ?? '',
+                panchayat: widget.userData['panchayat']?.toString() ?? '',
+              ),
+            ),
           );
           setState(() {}); // Refresh the list when returning
         },
@@ -191,8 +197,15 @@ class _SecretaryNotificationsPageState extends State<SecretaryNotificationsPage>
 
 class CreateNotificationPage extends StatefulWidget {
   final String unitNumber;
+  final String ward;
+  final String panchayat;
 
-  const CreateNotificationPage({Key? key, required this.unitNumber}) : super(key: key);
+  const CreateNotificationPage({
+    Key? key,
+    required this.unitNumber,
+    this.ward = '',
+    this.panchayat = '',
+  }) : super(key: key);
 
   @override
   State<CreateNotificationPage> createState() => _CreateNotificationPageState();
@@ -217,6 +230,8 @@ class _CreateNotificationPageState extends State<CreateNotificationPage> {
     try {
       await Supabase.instance.client.from('unit_notifications').insert({
         'unit_number': widget.unitNumber,
+        if (widget.ward.isNotEmpty) 'ward': widget.ward,
+        if (widget.panchayat.isNotEmpty) 'panchayat': widget.panchayat,
         'title': _titleController.text.trim(),
         'message': _messageController.text.trim(),
         'is_urgent': _isUrgent,
