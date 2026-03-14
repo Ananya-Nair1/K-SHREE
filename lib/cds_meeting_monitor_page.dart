@@ -24,9 +24,9 @@ class _CDSMeetingMonitorPageState extends State<CDSMeetingMonitorPage> {
 
   Future<void> _fetchWards() async {
     try {
-      // Get unique wards in this panchayat
+      // UPDATED: Querying the 'members' table based on your schema
       final response = await supabase
-          .from('Registered_Members')
+          .from('members')
           .select('ward')
           .eq('panchayat', widget.panchayat);
       
@@ -38,13 +38,15 @@ class _CDSMeetingMonitorPageState extends State<CDSMeetingMonitorPage> {
       // Sort wards numerically
       wardList.sort((a, b) => int.parse(a).compareTo(int.parse(b)));
 
-      setState(() {
-        _wards = wardList;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _wards = wardList;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       debugPrint("Error fetching wards: $e");
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -177,7 +179,8 @@ class _CDSMeetingMonitorPageState extends State<CDSMeetingMonitorPage> {
                               children: [
                                 const Icon(Icons.location_on, size: 14, color: Colors.grey),
                                 const SizedBox(width: 4),
-                                Text("Ward: ${meeting['ward']} | Unit: ${meeting['unit_name']}"),
+                                // UPDATED: Changed 'unit_name' to 'unit_number'
+                                Text("Ward: ${meeting['ward']} | Unit: ${meeting['unit_number'] ?? 'N/A'}"),
                               ],
                             ),
                             const SizedBox(height: 2),
@@ -185,7 +188,8 @@ class _CDSMeetingMonitorPageState extends State<CDSMeetingMonitorPage> {
                               children: [
                                 const Icon(Icons.access_time, size: 14, color: Colors.grey),
                                 const SizedBox(width: 4),
-                                Text("${meeting['meeting_date']} • ${meeting['meeting_time']}"),
+                                // UPDATED: Changed 'meeting_time' to 'time'
+                                Text("${meeting['meeting_date']} • ${meeting['time'] ?? 'N/A'}"),
                               ],
                             ),
                           ],

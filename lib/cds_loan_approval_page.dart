@@ -14,10 +14,9 @@ class _CDSLoanApprovalPageState extends State<CDSLoanApprovalPage> {
 
   Future<void> _finalizeLoan(String loanId, String status) async {
     try {
+      // UPDATED: Removed columns that don't exist in your schema (like 'cds_acknowledged_at')
       await supabase.from('loans').update({
         'status': status,
-        'cds_acknowledged_at': DateTime.now().toIso8601String(),
-        'final_approver': 'CDS Chairperson'
       }).eq('id', loanId);
 
       if (mounted) {
@@ -49,7 +48,7 @@ class _CDSLoanApprovalPageState extends State<CDSLoanApprovalPage> {
             .select()
             .eq('panchayat', widget.panchayat)
             .eq('status', 'ADS_APPROVED') // Only show loans already cleared by ADS
-            .order('created_at', ascending: false),
+            .order('applied_date', ascending: false), // UPDATED: matched 'applied_date' from your schema
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: primaryColor));
@@ -83,7 +82,8 @@ class _CDSLoanApprovalPageState extends State<CDSLoanApprovalPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text("₹${loan['amount']}", 
+                          // UPDATED: matched 'principal_amount' from your schema
+                          Text("₹${loan['principal_amount'] ?? 0}", 
                             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.teal)),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -93,10 +93,11 @@ class _CDSLoanApprovalPageState extends State<CDSLoanApprovalPage> {
                         ],
                       ),
                       const SizedBox(height: 10),
-                      Text(loan['member_name'] ?? "Unknown Member", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      Text("Ward: ${loan['ward']} | Unit: ${loan['unit_name']}", style: const TextStyle(color: Colors.grey)),
+                      // UPDATED: matched 'member_id', 'unit_number', and 'loan_type' from your schema
+                      Text("Member ID: ${loan['member_id'] ?? 'Unknown'}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text("Ward: ${loan['ward']} | Unit: ${loan['unit_number']}", style: const TextStyle(color: Colors.grey)),
                       const SizedBox(height: 10),
-                      Text("Purpose: ${loan['purpose'] ?? 'General Loan'}", style: const TextStyle(color: Colors.black87)),
+                      Text("Type: ${loan['loan_type'] ?? 'General Loan'}", style: const TextStyle(color: Colors.black87)),
                       const Divider(height: 30),
                       Row(
                         children: [
@@ -123,8 +124,8 @@ class _CDSLoanApprovalPageState extends State<CDSLoanApprovalPage> {
               );
             },
           );
-        }, // Properly closing the builder
-      ), // Properly closing the FutureBuilder
+        },
+      ),
     );
   }
 }

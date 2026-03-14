@@ -16,9 +16,9 @@ class _CDSGrievanceManagementPageState extends State<CDSGrievanceManagementPage>
   Future<void> _updateGrievanceStatus(String id, String newStatus) async {
     try {
       await supabase
-          .from('grievances')
+          .from('complaints') // UPDATED: Matches your schema table name
           .update({'status': newStatus, 'resolved_by': 'CDS Chairperson'})
-          .eq('id', id);
+          .eq('complaint_id', id); // UPDATED: Matches your schema primary key
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -44,7 +44,7 @@ class _CDSGrievanceManagementPageState extends State<CDSGrievanceManagementPage>
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: supabase
-            .from('grievances')
+            .from('complaints') // UPDATED: Matches your schema table name
             .select()
             .eq('panchayat', widget.panchayat)
             .order('created_at', ascending: false),
@@ -59,7 +59,7 @@ class _CDSGrievanceManagementPageState extends State<CDSGrievanceManagementPage>
 
           final grievances = snapshot.data ?? [];
           if (grievances.isEmpty) {
-            return const Center(child: Text("No grievances reported in this Panchayat."));
+            return const Center(child: Text("No complaints reported in this Panchayat."));
           }
 
           return ListView.builder(
@@ -104,16 +104,19 @@ class _CDSGrievanceManagementPageState extends State<CDSGrievanceManagementPage>
                         children: [
                           const Icon(Icons.person, size: 14, color: Colors.grey),
                           const SizedBox(width: 5),
-                          Text("Ward ${item['ward']} - ${item['member_name']}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          // UPDATED: safely checks for member_id or member_name depending on what you saved
+                          Text("Ward ${item['ward'] ?? 'N/A'} - Member: ${item['member_id'] ?? item['member_name'] ?? 'Unknown'}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
                           const Spacer(),
                           if (!isResolved) ...[
                             TextButton(
-                              onPressed: () => _updateGrievanceStatus(item['id'].toString(), 'ACKNOWLEDGED'),
+                              // UPDATED: Passes complaint_id instead of id
+                              onPressed: () => _updateGrievanceStatus(item['complaint_id'].toString(), 'ACKNOWLEDGED'),
                               child: const Text("ACKNOWLEDGE"),
                             ),
                             ElevatedButton(
                               style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-                              onPressed: () => _updateGrievanceStatus(item['id'].toString(), 'RESOLVED'),
+                              // UPDATED: Passes complaint_id instead of id
+                              onPressed: () => _updateGrievanceStatus(item['complaint_id'].toString(), 'RESOLVED'),
                               child: const Text("RESOLVE", style: TextStyle(color: Colors.white)),
                             ),
                           ] else 
@@ -126,8 +129,8 @@ class _CDSGrievanceManagementPageState extends State<CDSGrievanceManagementPage>
               );
             },
           );
-        }, // Closed builder correctly
-      ), // Closed FutureBuilder correctly
+        },
+      ),
     );
   }
 }

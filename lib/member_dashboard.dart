@@ -14,7 +14,7 @@ import 'member_settings_page.dart';
 import 'member_loans_page.dart';
 import 'member_schemes_page.dart'; 
 import 'member_election_page.dart'; 
-import 'member_trainings_page.dart'; 
+import 'member_trainings_page.dart';
 
 class MemberDashboard extends StatefulWidget {
   final Member member;
@@ -265,7 +265,7 @@ class _MemberDashboardState extends State<MemberDashboard> {
           _buildModernGridItem(context, 'Savings', Icons.savings, Colors.teal, onTap: () => _navigateIfReady(context, MemberSavingsPage(memberId: userId))),
           _buildModernGridItem(context, 'Loans', Icons.monetization_on, Colors.green, onTap: () => _navigateIfReady(context, MemberLoansPage(memberId: userId))),
           _buildModernGridItem(context, 'Schemes', Icons.account_balance, Colors.blue, onTap: () => _navigateIfReady(context, MemberSchemesPage(memberId: userId, memberName: name))),
-          _buildModernGridItem(context, 'Trainings', Icons.school, Colors.orange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MemberTrainingsPage()))),
+          _buildModernGridItem(context, 'Trainings', Icons.school, Colors.orange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MemberTrainingsPage(userData: {'unit_number': _unit, 'ward': _ward, 'panchayat': _panchayat})))),
           _buildModernGridItem(context, 'Grievance', Icons.report_problem, Colors.redAccent, onTap: () => _navigateIfReady(context, MemberGrievancePage(memberId: userId, unitNumber: unit))),
           _buildModernGridItem(context, 'Elections', Icons.how_to_reg, Colors.purple, onTap: () => _navigateIfReady(context, MemberElectionPage(unitNumber: unit, currentMemberId: userId))),
           _buildModernGridItem(context, 'Profile', Icons.person, Colors.pink, onTap: () => _navigateIfReady(context, MemberProfilePage(memberId: userId))),

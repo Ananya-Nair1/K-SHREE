@@ -16,20 +16,22 @@ class _CDSSchemesPageState extends State<CDSSchemesPage> {
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
   final _subsidyController = TextEditingController();
-  final _deadlineController = TextEditingController();
+  final _categoryController = TextEditingController();
+  final _eligibilityController = TextEditingController();
 
   Future<void> _addNewScheme() async {
     if (!_formKey.currentState!.validate()) return;
 
     try {
-      await supabase.from('schemes').insert({
+      // UPDATED: Matching your exact database columns
+      await supabase.from('government_schemes').insert({
         'title': _titleController.text,
         'description': _descController.text,
         'subsidy_amount': double.tryParse(_subsidyController.text) ?? 0.0,
-        'deadline': _deadlineController.text,
-        'panchayat': widget.panchayat,
-        'status': 'ACTIVE',
-        'created_at': DateTime.now().toIso8601String(),
+        'category': _categoryController.text.isNotEmpty ? _categoryController.text : 'General',
+        'eligibility_criteria': _eligibilityController.text,
+        'is_active': true, // Using the boolean from your schema
+        // Removed 'panchayat' and 'deadline' as they don't exist in your table
       });
 
       if (mounted) {
@@ -41,6 +43,11 @@ class _CDSSchemesPageState extends State<CDSSchemesPage> {
       }
     } catch (e) {
       debugPrint("Error adding scheme: $e");
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red)
+        );
+      }
     }
   }
 
@@ -59,10 +66,11 @@ class _CDSSchemesPageState extends State<CDSSchemesPage> {
               children: [
                 const Text("Launch New Scheme", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 20),
-                TextFormField(controller: _titleController, decoration: const InputDecoration(labelText: "Scheme Title (e.g. Poultry Farming)"), validator: (v) => v!.isEmpty ? "Required" : null),
-                TextFormField(controller: _descController, decoration: const InputDecoration(labelText: "Description"), maxLines: 3, validator: (v) => v!.isEmpty ? "Required" : null),
+                TextFormField(controller: _titleController, decoration: const InputDecoration(labelText: "Scheme Title"), validator: (v) => v!.isEmpty ? "Required" : null),
+                TextFormField(controller: _descController, decoration: const InputDecoration(labelText: "Description"), maxLines: 2, validator: (v) => v!.isEmpty ? "Required" : null),
+                TextFormField(controller: _categoryController, decoration: const InputDecoration(labelText: "Category (e.g., Agriculture, Education)")),
                 TextFormField(controller: _subsidyController, decoration: const InputDecoration(labelText: "Subsidy Amount (₹)"), keyboardType: TextInputType.number),
-                TextFormField(controller: _deadlineController, decoration: const InputDecoration(labelText: "Application Deadline (YYYY-MM-DD)"), keyboardType: TextInputType.datetime),
+                TextFormField(controller: _eligibilityController, decoration: const InputDecoration(labelText: "Eligibility Criteria (e.g., BPL only)"), maxLines: 2),
                 const SizedBox(height: 25),
                 SizedBox(
                   width: double.infinity,
@@ -86,7 +94,7 @@ class _CDSSchemesPageState extends State<CDSSchemesPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F6),
       appBar: AppBar(
-        title: const Text("Panchayat Schemes", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text("Government Schemes", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.teal,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -97,42 +105,59 @@ class _CDSSchemesPageState extends State<CDSSchemesPage> {
         icon: const Icon(Icons.add, color: Colors.white),
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: supabase.from('schemes').select().eq('panchayat', widget.panchayat).order('created_at', ascending: false),
+        // UPDATED: Removed .eq('panchayat') because schemes are global in your DB.
+        // Changed ordering to 'created_at' to match your schema.
+        future: supabase.from('government_schemes').select().order('created_at', ascending: false),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
           
           final schemes = snapshot.data ?? [];
-          if (schemes.isEmpty) return const Center(child: Text("No schemes active in this Panchayat."));
+          if (schemes.isEmpty) return const Center(child: Text("No government schemes available."));
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: schemes.length,
             itemBuilder: (context, index) {
               final scheme = schemes[index];
+              final bool isActive = scheme['is_active'] ?? true;
+
               return Card(
                 elevation: 3,
                 margin: const EdgeInsets.only(bottom: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                 child: ListTile(
                   contentPadding: const EdgeInsets.all(16),
-                  title: Text(scheme['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  title: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(child: Text(scheme['title'] ?? 'No Title', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18))),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(color: isActive ? Colors.green.shade50 : Colors.red.shade50, borderRadius: BorderRadius.circular(5)),
+                        child: Text(isActive ? "ACTIVE" : "INACTIVE", style: TextStyle(color: isActive ? Colors.green : Colors.red, fontWeight: FontWeight.bold, fontSize: 10)),
+                      ),
+                    ],
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 8),
-                      Text(scheme['description'], maxLines: 2, overflow: TextOverflow.ellipsis),
+                      Text(scheme['description'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 8),
+                      Text("Eligibility: ${scheme['eligibility_criteria'] ?? 'None specified'}", style: const TextStyle(fontSize: 12, color: Colors.blueGrey, fontStyle: FontStyle.italic)),
                       const SizedBox(height: 12),
                       Row(
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(5)),
-                            child: Text("Subsidy: ₹${scheme['subsidy_amount']}", style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
+                            decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(5)),
+                            child: Text("Subsidy: ₹${scheme['subsidy_amount'] ?? 0}", style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.bold, fontSize: 12)),
                           ),
                           const Spacer(),
-                          const Icon(Icons.timer_outlined, size: 14, color: Colors.grey),
+                          const Icon(Icons.category, size: 14, color: Colors.grey),
                           const SizedBox(width: 4),
-                          Text("Ends: ${scheme['deadline']}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          Text(scheme['category'] ?? 'General', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                         ],
                       ),
                     ],

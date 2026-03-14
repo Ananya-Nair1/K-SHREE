@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 // Import all the pages we built
 import 'cds_financial_summary_page.dart';
@@ -12,6 +14,7 @@ import 'cds_calendar_page.dart';
 import 'cds_report_generator.dart'; // The PDF generator
 import 'cds_scheme_approvals_page.dart';
 import 'cds_unit_analytics_page.dart';
+import 'login_page.dart';
 
 class CDSDashboard extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -84,7 +87,14 @@ class _CDSDashboardState extends State<CDSDashboard> {
             ),
           ),
           IconButton(
-            onPressed: () => supabase.auth.signOut().then((_) => Navigator.pushReplacementNamed(context, '/login')),
+            onPressed: () async {
+              const secureStorage = FlutterSecureStorage();
+              await secureStorage.deleteAll();
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('biometric', false);
+              await supabase.auth.signOut();
+              if (context.mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginPage()), (route) => false);
+            },
             icon: const Icon(Icons.logout),
           ),
         ],

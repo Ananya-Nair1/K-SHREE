@@ -11,7 +11,8 @@ import 'ads_loan_requests_page.dart';
 import 'ads_complaints_page.dart'; 
 import 'ads_chairperson_loans_page.dart'; 
 import 'ads_savings_page.dart';
-import 'ads_savings_page.dart'; // Ensure this is imported
+import 'ads_savings_page.dart';
+import 'ads_training_page.dart';
 
 class ADSChairpersonDashboard extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -256,7 +257,19 @@ class ADSChairpersonDashboard extends StatelessWidget {
                     },
                   ),
                   _buildModernGridItem('Schemes', Icons.account_balance, Colors.blue),
-                  _buildModernGridItem('Trainings', Icons.school, Colors.orange),
+                  _buildModernGridItem(
+                    'Trainings', 
+                    Icons.school, 
+                    Colors.orange,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ADSTrainingsPage(userData: userData),
+                        ),
+                      );
+                    },
+                  ),
                   _buildModernGridItem(
                     'Ward Savings', 
                     Icons.savings, 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'member_details_page.dart';
 
 class MemberSearchPage extends StatefulWidget {
   final String panchayat;
@@ -12,91 +11,202 @@ class MemberSearchPage extends StatefulWidget {
 
 class _MemberSearchPageState extends State<MemberSearchPage> {
   final supabase = Supabase.instance.client;
+  String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
-  List<dynamic> _searchResults = [];
-  bool _isSearching = false;
 
-  Future<void> _performSearch(String query) async {
-    if (query.isEmpty) return;
-    setState(() => _isSearching = true);
+  Future<List<Map<String, dynamic>>> _fetchMembers() async {
+    // 1. Base query strictly pointing to 'Registered_Members' table
+    var query = supabase
+        .from('Registered_Members')
+        .select()
+        .eq('panchayat', widget.panchayat);
 
-    try {
-      // Search by name or aadhar number within the specific panchayat
-      final response = await supabase
-          .from('Registered_Members')
-          .select()
-          .eq('panchayat', widget.panchayat)
-          .or('full_name.ilike.%$query%,aadhar_number.eq.$query');
-
-      setState(() {
-        _searchResults = response as List<dynamic>;
-        _isSearching = false;
-      });
-    } catch (e) {
-      debugPrint("Search error: $e");
-      setState(() => _isSearching = false);
+    // 2. Apply search filter if the user typed something
+    if (_searchQuery.isNotEmpty) {
+      // Searches both full_name and aadhar_number (case-insensitive)
+      query = query.or('full_name.ilike.%$_searchQuery%,aadhar_number.ilike.%$_searchQuery%');
     }
+
+    // 3. Sort alphabetically by name
+    final response = await query.order('full_name', ascending: true);
+    return List<Map<String, dynamic>>.from(response as List);
   }
 
   @override
   Widget build(BuildContext context) {
+    const Color primaryColor = Colors.teal;
+
     return Scaffold(
+      backgroundColor: const Color(0xFFF4F7F6),
       appBar: AppBar(
-        title: const Text("Member Directory"),
-        backgroundColor: Colors.teal,
+        title: const Text("Member Directory", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: primaryColor,
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Column(
         children: [
-          Padding(
+          // --- SEARCH BAR ---
+          Container(
+            color: Colors.white,
             padding: const EdgeInsets.all(16.0),
             child: TextField(
               controller: _searchController,
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
               decoration: InputDecoration(
-                hintText: "Search by Name or Aadhar",
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() => _searchResults = []);
-                  },
+                labelText: "Search by Name or Aadhar",
+                labelStyle: const TextStyle(color: Colors.teal),
+                prefixIcon: const Icon(Icons.search, color: Colors.teal),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.grey),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchQuery = '';
+                          });
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: const BorderSide(color: Colors.teal, width: 2),
                 ),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              onSubmitted: _performSearch,
             ),
           ),
+
+          // --- MEMBER LIST ---
           Expanded(
-            child: _isSearching
-                ? const Center(child: CircularProgressIndicator())
-                : _searchResults.isEmpty
-                    ? const Center(child: Text("No members found."))
-                    : ListView.builder(
-                        itemCount: _searchResults.length,
-                        itemBuilder: (context, index) {
-                          final member = _searchResults[index];
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundImage: member['photo_url'] != null
-                                  ? NetworkImage(member['photo_url'])
-                                  : null,
-                              child: member['photo_url'] == null ? const Icon(Icons.person) : null,
+            child: FutureBuilder<List<Map<String, dynamic>>>(
+              future: _fetchMembers(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator(color: primaryColor));
+                }
+
+                if (snapshot.hasError) {
+                  return Center(child: Text("Error: ${snapshot.error}"));
+                }
+
+                final members = snapshot.data ?? [];
+
+                if (members.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.group_off, size: 60, color: Colors.grey.shade400),
+                        const SizedBox(height: 10),
+                        const Text("No members found.", style: TextStyle(color: Colors.grey, fontSize: 16)),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: members.length,
+                  itemBuilder: (context, index) {
+                    final member = members[index];
+                    
+                    // Matching schema column names exactly
+                    final String name = member['full_name'] ?? "Unknown Member";
+                    final String aadhar = member['aadhar_number'] ?? "N/A";
+                    final String ward = member['ward']?.toString() ?? "N/A";
+                    final String unit = member['unit_number']?.toString() ?? "N/A";
+                    final String phone = member['phone_number'] ?? "No Phone";
+                    final String designation = member['designation'] ?? "Member";
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      elevation: 2,
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.all(16),
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.teal.shade100,
+                          radius: 25,
+                          child: Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : "?",
+                            style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.bold, fontSize: 20),
+                          ),
+                        ),
+                        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 5),
+                            Text("Aadhar: $aadhar", style: const TextStyle(color: Colors.blueGrey)),
+                            const SizedBox(height: 5),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(5)),
+                                  child: Text("Ward: $ward", style: const TextStyle(fontSize: 12)),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(5)),
+                                  child: Text("Unit: $unit", style: const TextStyle(fontSize: 12)),
+                                ),
+                              ],
                             ),
-                            title: Text(member['full_name'] ?? "Unknown"),
-                            subtitle: Text("Ward: ${member['ward']} | Unit: ${member['unit_number']}"),
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => MemberDetailsPage(member: member),
-    ),
-  );
-},
-                          );
+                          ],
+                        ),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(designation == 'Member' ? Icons.person : Icons.star, 
+                                color: designation == 'Member' ? Colors.grey : Colors.amber, size: 20),
+                            const SizedBox(height: 4),
+                            Text(designation, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                          ],
+                        ),
+                        onTap: () {
+                          // Optional: Show a dialog with full member details like Phone and Bank Info when tapped
+                          _showMemberDetails(context, member);
                         },
                       ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
+        ],
+      ),
+    );
+  }
+
+  void _showMemberDetails(BuildContext context, Map<String, dynamic> member) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(member['full_name'] ?? 'Member Details'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Phone: ${member['phone_number'] ?? 'N/A'}"),
+            const SizedBox(height: 5),
+            Text("DOB: ${member['dob'] ?? 'N/A'}"),
+            const SizedBox(height: 5),
+            Text("Bank: ${member['bank_name'] ?? 'N/A'}"),
+            const SizedBox(height: 5),
+            Text("A/C No: ${member['account_number'] ?? 'N/A'}"),
+            const SizedBox(height: 5),
+            Text("IFSC: ${member['ifsc_code'] ?? 'N/A'}"),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close")),
         ],
       ),
     );

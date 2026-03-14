@@ -16,8 +16,6 @@ class _CDSSchemeApprovalsPageState extends State<CDSSchemeApprovalsPage> {
     try {
       await supabase.from('scheme_applications').update({
         'status': status,
-        'approved_at': DateTime.now().toIso8601String(),
-        'remarks': 'Processed by CDS Chairperson'
       }).eq('id', id);
 
       if (mounted) {
@@ -46,8 +44,8 @@ class _CDSSchemeApprovalsPageState extends State<CDSSchemeApprovalsPage> {
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: supabase
             .from('scheme_applications')
-            .select('*, schemes(title)') // Join with schemes table to get the name
-            .eq('panchayat', widget.panchayat)
+            // FIXED: Changed the join to 'government_schemes'
+            .select('*, government_schemes(title)') 
             .eq('status', 'PENDING'),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -68,7 +66,10 @@ class _CDSSchemeApprovalsPageState extends State<CDSSchemeApprovalsPage> {
             itemCount: applications.length,
             itemBuilder: (context, index) {
               final app = applications[index];
-              final schemeTitle = app['schemes'] != null ? app['schemes']['title'] : "Unknown Scheme";
+              // FIXED: Getting the title from 'government_schemes'
+              final schemeTitle = app['government_schemes'] != null 
+                  ? app['government_schemes']['title'] 
+                  : "Scheme ID: ${app['scheme_id']}";
 
               return Card(
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -89,10 +90,9 @@ class _CDSSchemeApprovalsPageState extends State<CDSSchemeApprovalsPage> {
                         ],
                       ),
                       const Divider(height: 20),
-                      Text("Applicant: ${app['member_name']}", style: const TextStyle(fontWeight: FontWeight.w600)),
-                      Text("Ward: ${app['ward']} | Aadhar: ${app['aadhar_number']}", style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                      Text("Applicant: ${app['member_name'] ?? app['member_id'] ?? 'Unknown'}", style: const TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 10),
-                      Text("Application Date: ${app['created_at'].toString().split('T')[0]}", style: const TextStyle(fontSize: 12)),
+                      Text("Application Date: ${app['applied_date']?.toString().split('T')[0] ?? 'N/A'}", style: const TextStyle(fontSize: 12)),
                       const SizedBox(height: 15),
                       Row(
                         children: [
@@ -119,8 +119,8 @@ class _CDSSchemeApprovalsPageState extends State<CDSSchemeApprovalsPage> {
               );
             },
           );
-        }, // Closed builder
-      ), // Closed FutureBuilder
+        }, 
+      ), 
     );
   }
 }

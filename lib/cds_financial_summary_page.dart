@@ -13,7 +13,7 @@ class _CDSFinancialSummaryPageState extends State<CDSFinancialSummaryPage> {
   final supabase = Supabase.instance.client;
   bool _isLoading = true;
   double _totalSavings = 0.0;
-  double _totalLoansRepaid = 0.0;
+  double _totalLoansDisbursed = 0.0;
   int _transactionCount = 0;
 
   @override
@@ -24,35 +24,36 @@ class _CDSFinancialSummaryPageState extends State<CDSFinancialSummaryPage> {
 
   Future<void> _fetchFinancialData() async {
     try {
-      // Fetching all transactions linked to this panchayat
-      final response = await supabase
-          .from('transactions')
-          .select()
-          .eq('panchayat', widget.panchayat);
-
+      // 1. Fetch all records from the 'savings' table
+      final savingsResponse = await supabase.from('savings').select('amount');
+      
       double savings = 0.0;
-      double loans = 0.0;
-
-      for (var row in response) {
-        double amount = double.tryParse(row['amount'].toString()) ?? 0.0;
-        String type = row['type']?.toString().toUpperCase() ?? '';
-        
-        if (type == 'SAVINGS') {
-          savings += amount;
-        } else if (type == 'LOAN_REPAYMENT') {
-          loans += amount;
-        }
+      for (var row in savingsResponse) {
+        savings += double.tryParse(row['amount'].toString()) ?? 0.0;
       }
 
-      setState(() {
-        _totalSavings = savings;
-        _totalLoansRepaid = loans;
-        _transactionCount = (response as List).length;
-        _isLoading = false;
-      });
+      // 2. Fetch all approved/disbursed loans from the 'loans' table
+      final loansResponse = await supabase
+          .from('loans')
+          .select('principal_amount')
+          .inFilter('status', ['APPROVED', 'DISBURSED']); // Only count active/cleared loans
+          
+      double loans = 0.0;
+      for (var row in loansResponse) {
+        loans += double.tryParse(row['principal_amount'].toString()) ?? 0.0;
+      }
+
+      if (mounted) {
+        setState(() {
+          _totalSavings = savings;
+          _totalLoansDisbursed = loans;
+          _transactionCount = (savingsResponse as List).length + (loansResponse as List).length;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       debugPrint("Finance Fetch Error: $e");
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -80,9 +81,10 @@ class _CDSFinancialSummaryPageState extends State<CDSFinancialSummaryPage> {
                   const SizedBox(height: 15),
                   _buildDetailRow("Total Savings Collected", "₹${_totalSavings.toStringAsFixed(2)}", Colors.green, Icons.savings),
                   const Divider(height: 30),
-                  _buildDetailRow("Loan Repayments", "₹${_totalLoansRepaid.toStringAsFixed(2)}", Colors.blue, Icons.payments),
+                  // Updated label to reflect the 'loans' table data
+                  _buildDetailRow("Loans Disbursed", "₹${_totalLoansDisbursed.toStringAsFixed(2)}", Colors.blue, Icons.payments),
                   const Divider(height: 30),
-                  _buildDetailRow("Total Transactions", _transactionCount.toString(), Colors.orange, Icons.receipt_long),
+                  _buildDetailRow("Total Records", _transactionCount.toString(), Colors.orange, Icons.receipt_long),
                   const SizedBox(height: 40),
                   _buildInfoNote(),
                 ],
@@ -104,7 +106,8 @@ class _CDSFinancialSummaryPageState extends State<CDSFinancialSummaryPage> {
         children: [
           const Text("Total Funds Managed", style: TextStyle(color: Colors.white70, fontSize: 16)),
           const SizedBox(height: 10),
-          Text("₹${(_totalSavings + _totalLoansRepaid).toStringAsFixed(2)}", 
+          // Adding savings and loans gives a rough idea of total capital moved
+          Text("₹${(_totalSavings + _totalLoansDisbursed).toStringAsFixed(2)}", 
             style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
           const Text("Across all ADS Units", style: TextStyle(color: Colors.white60, fontSize: 12)),
@@ -135,10 +138,10 @@ class _CDSFinancialSummaryPageState extends State<CDSFinancialSummaryPage> {
       child: const Row(
         children: [
           Icon(Icons.info_outline, color: Colors.blue, size: 20),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Text(
-              "This data is aggregated from all verified NHG transactions in the Panchayat.",
+              "This data is aggregated directly from the savings and loans tables.",
               style: TextStyle(fontSize: 12, color: Colors.blueGrey),
             ),
           ),

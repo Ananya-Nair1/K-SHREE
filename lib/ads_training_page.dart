@@ -3,16 +3,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class SecretaryTrainingsPage extends StatefulWidget {
+class ADSTrainingsPage extends StatefulWidget {
   final Map<String, dynamic> userData;
-
-  const SecretaryTrainingsPage({Key? key, required this.userData}) : super(key: key);
+  const ADSTrainingsPage({super.key, required this.userData});
 
   @override
-  State<SecretaryTrainingsPage> createState() => _SecretaryTrainingsPageState();
+  State<ADSTrainingsPage> createState() => _ADSTrainingsPageState();
 }
 
-class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
+class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
   final supabase = Supabase.instance.client;
   Set<int> _registeredTrainingIds = {};
   bool _isLoadingRegistrations = true;
@@ -23,6 +22,7 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
     _fetchMyRegistrations();
   }
 
+  // Fetch the trainings this specific user has already registered for
   Future<void> _fetchMyRegistrations() async {
     try {
       final response = await supabase
@@ -41,6 +41,7 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
     }
   }
 
+  // Register for a training
   Future<void> _registerForTraining(int trainingId) async {
     try {
       await supabase.from('training_registrations').insert({
@@ -50,7 +51,7 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
 
       if (mounted) {
         setState(() {
-          _registeredTrainingIds.add(trainingId);
+          _registeredTrainingIds.add(trainingId); // Update UI immediately
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("✅ Successfully registered for training!"), backgroundColor: Colors.green),
@@ -65,13 +66,14 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
     }
   }
 
+  // Extract YouTube ID for thumbnail
   String getYoutubeThumbnail(String url) {
     final RegExp regExp = RegExp(r'(?<=watch\?v=|/videos/|embed\/|youtu.be\/|\/v\/|\/e\/|watch\?v%3D|watch\?feature=player_embedded&v=|%2Fvideos%2F|embed%\u200C\u200B2F|youtu.be%2F|\/v%2F)[^#\&\?\n]*');
     final match = regExp.firstMatch(url);
     if (match != null && match.group(0) != null) {
       return 'https://img.youtube.com/vi/${match.group(0)}/0.jpg';
     }
-    return 'https://via.placeholder.com/200x120?text=Video'; 
+    return 'https://via.placeholder.com/200x120?text=Video';
   }
 
   Future<void> _launchYouTube(String urlString) async {
@@ -82,6 +84,7 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
     }
   }
 
+  // --- ADD TRAINING BOTTOM SHEET ---
   void _showAddTrainingDialog() {
     final titleController = TextEditingController();
     final descController = TextEditingController();
@@ -91,6 +94,7 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
     DateTime? selectedDate;
     TimeOfDay? selectedTime;
     
+    // Dropdown choices and default selected value for Category
     String selectedCategory = 'General Training';
     final List<String> categories = [
       'General Training',
@@ -101,6 +105,7 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
       'Leadership & Management'
     ];
 
+    // Dropdown choices and default selected value for Venue
     String selectedVenue = 'Panchayat Office';
     final List<String> venues = [
       'Panchayat Office',
@@ -123,7 +128,7 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text("Add Unit Training", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal)),
+                  const Text("Add New Training", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal)),
                   const SizedBox(height: 15),
                   
                   SegmentedButton<String>(
@@ -141,6 +146,7 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
                   TextField(controller: titleController, decoration: const InputDecoration(labelText: "Program Title", border: OutlineInputBorder())),
                   const SizedBox(height: 10),
                   
+                  // Category Dropdown
                   DropdownButtonFormField<String>(
                     decoration: const InputDecoration(labelText: "Category", border: OutlineInputBorder()),
                     value: selectedCategory,
@@ -148,7 +154,9 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
                       return DropdownMenuItem(value: category, child: Text(category));
                     }).toList(),
                     onChanged: (value) {
-                      if (value != null) setSheetState(() => selectedCategory = value);
+                      if (value != null) {
+                        setSheetState(() => selectedCategory = value);
+                      }
                     },
                   ),
                   const SizedBox(height: 10),
@@ -159,6 +167,7 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
                     TextField(controller: descController, maxLines: 2, decoration: const InputDecoration(labelText: "Description", border: OutlineInputBorder())),
                     const SizedBox(height: 10),
                     
+                    // Venue Dropdown
                     DropdownButtonFormField<String>(
                       decoration: const InputDecoration(labelText: "Venue", border: OutlineInputBorder()),
                       value: selectedVenue,
@@ -166,7 +175,9 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
                         return DropdownMenuItem(value: venue, child: Text(venue));
                       }).toList(),
                       onChanged: (value) {
-                        if (value != null) setSheetState(() => selectedVenue = value);
+                        if (value != null) {
+                          setSheetState(() => selectedVenue = value);
+                        }
                       },
                     ),
                     const SizedBox(height: 10),
@@ -219,7 +230,6 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
                             'venue': trainingType == 'Live' ? selectedVenue : 'YouTube', // Send 'YouTube' instead of null
                             'training_date': selectedDate?.toIso8601String(),
                             'training_time': selectedTime?.format(context),
-                            'unit_number': widget.userData['unit_number']?.toString(),
                             'ward': (widget.userData['ward'] ?? widget.userData['ward_number'])?.toString() ?? '',
                             'panchayat': widget.userData['panchayat']?.toString() ?? '',
                             'district': widget.userData['district']?.toString() ?? '',
@@ -252,7 +262,6 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
     final String userWard = (widget.userData['ward'] ?? widget.userData['ward_number'])?.toString() ?? '';
     final String userPanchayat = widget.userData['panchayat']?.toString() ?? '';
     final String userDistrict = widget.userData['district']?.toString() ?? '';
-    final String userUnit = widget.userData['unit_number']?.toString() ?? '';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F6),
@@ -265,12 +274,12 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
       body: _isLoadingRegistrations 
         ? const Center(child: CircularProgressIndicator(color: Colors.teal))
         : StreamBuilder<List<Map<String, dynamic>>>(
+        // Fetch trainings matching this ADS's ward, panchayat, and district
         stream: supabase.from('trainings')
-            .select('*, Registered_Members(full_name, designation)')
+            .select()
             .eq('ward', userWard)
             .ilike('panchayat', userPanchayat)
             .ilike('district', userDistrict)
-            .or('unit_number.eq.$userUnit,unit_number.is.null') 
             .order('created_at', ascending: false)
             .asStream()
             .map((data) => List<Map<String, dynamic>>.from(data)),
@@ -287,6 +296,7 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // --- VIDEO SECTION ---
                 if (videos.isNotEmpty) Container(
                   padding: const EdgeInsets.only(top: 20, bottom: 20),
                   color: Colors.white,
@@ -299,13 +309,19 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
                       ),
                       const SizedBox(height: 16),
                       SizedBox(
-                        height: 200, 
+                        height: 180, 
                         child: ListView.builder(
                           scrollDirection: Axis.horizontal,
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           itemCount: videos.length,
                           itemBuilder: (context, index) {
-                            return _buildVideoCard(videos[index]);
+                            final video = videos[index];
+                            final mappedVideo = {
+                              'title': video['program_name']?.toString() ?? 'Video',
+                              'url': video['video_link']?.toString() ?? '',
+                              'thumbnail': getYoutubeThumbnail(video['video_link']?.toString() ?? ''),
+                            };
+                            return _buildVideoCard(mappedVideo);
                           },
                         ),
                       ),
@@ -319,6 +335,7 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
                   child: Text("Upcoming Live Sessions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
                 ),
 
+                // --- LIVE SESSIONS SECTION ---
                 if (liveSessions.isEmpty) 
                    _buildEmptyState("No live training sessions scheduled right now.")
                 else
@@ -336,6 +353,7 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
           );
         },
       ),
+      // --- FAB TO ADD NEW TRAINING ---
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.teal,
         onPressed: _showAddTrainingDialog,
@@ -344,24 +362,10 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
     );
   }
 
-  Widget _buildVideoCard(Map<String, dynamic> videoData) {
-    final String url = videoData['video_link']?.toString() ?? '';
-    final String title = videoData['program_name']?.toString() ?? 'Video';
-    final String thumbnail = getYoutubeThumbnail(url);
-    
-    final bool isWardLevel = videoData['unit_number'] == null;
-    String uploaderName = isWardLevel ? 'ADS Chairperson' : 'Unit Secretary';
-    
-    if (videoData['Registered_Members'] != null) {
-      final String name = videoData['Registered_Members']['full_name'] ?? '';
-      final String role = videoData['Registered_Members']['designation'] ?? '';
-      if (name.isNotEmpty) {
-        uploaderName = role.isNotEmpty ? '$name ($role)' : name;
-      }
-    }
-
+  // --- UI COMPONENTS ---
+  Widget _buildVideoCard(Map<String, String> video) {
     return GestureDetector(
-      onTap: () => _launchYouTube(url),
+      onTap: () => _launchYouTube(video['url']!),
       child: Container(
         width: 200, 
         margin: const EdgeInsets.only(right: 16),
@@ -377,7 +381,7 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                  image: DecorationImage(image: NetworkImage(thumbnail), fit: BoxFit.cover),
+                  image: DecorationImage(image: NetworkImage(video['thumbnail']!), fit: BoxFit.cover),
                 ),
                 child: Center(
                   child: Container(
@@ -389,50 +393,12 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
             ),
             Padding(
               padding: const EdgeInsets.all(12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(color: Colors.blueGrey, fontWeight: FontWeight.bold, fontSize: 13, height: 1.2),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(Icons.upload_file, size: 12, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          uploaderName,
-                          style: const TextStyle(fontSize: 10, color: Colors.grey),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              child: Text(
+                video['title']!,
+                style: const TextStyle(color: Colors.blueGrey, fontWeight: FontWeight.bold, fontSize: 13, height: 1.2),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(String message) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 40),
-        child: Column(
-          children: [
-            Icon(Icons.event_busy, size: 60, color: Colors.grey.shade300),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(message, textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
             ),
           ],
         ),
@@ -451,17 +417,6 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
         formattedDate = DateFormat('dd MMM yyyy').format(date);
       }
     } catch (_) {}
-
-    final bool isWardLevel = training['unit_number'] == null;
-    
-    String schedulerName = isWardLevel ? 'ADS Chairperson' : 'Unit Secretary';
-    if (training['Registered_Members'] != null) {
-      final String name = training['Registered_Members']['full_name'] ?? '';
-      final String role = training['Registered_Members']['designation'] ?? '';
-      if (name.isNotEmpty) {
-        schedulerName = role.isNotEmpty ? '$name ($role)' : name;
-      }
-    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -485,36 +440,13 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        training['program_name'] ?? 'Skill Development Workshop',
+                        training['program_name'] ?? 'Skill Development Workshop', 
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)
                       ),
                       const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isWardLevel ? Colors.orange.shade100 : Colors.blue.shade100,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              isWardLevel ? 'Ward Training' : 'Unit Training',
-                              style: TextStyle(
-                                color: isWardLevel ? Colors.orange.shade800 : Colors.blue.shade800, 
-                                fontSize: 10, 
-                                fontWeight: FontWeight.bold
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              training['category'] ?? 'General Training', 
-                              style: const TextStyle(color: Colors.grey, fontSize: 13),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        training['category'] ?? 'General Training', 
+                        style: const TextStyle(color: Colors.grey, fontSize: 13)
                       ),
                     ],
                   ),
@@ -526,7 +458,7 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
               training['description'] ?? 'Join this session to improve your skills.',
               style: TextStyle(color: Colors.grey.shade700, fontSize: 13, height: 1.4),
             ),
-            const Divider(height: 24),
+            const Divider(height: 30),
             Row(
               children: [
                 const Icon(Icons.calendar_today, size: 16, color: Colors.teal), 
@@ -546,26 +478,13 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
                 Expanded(child: Text(training['venue'] ?? 'CDS Main Hall', style: const TextStyle(color: Colors.blueGrey))),
               ],
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(Icons.person, size: 16, color: Colors.indigo),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Scheduled by: $schedulerName', 
-                    style: const TextStyle(color: Colors.indigo, fontSize: 13, fontWeight: FontWeight.w500)
-                  )
-                ),
-              ],
-            ),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isRegistered ? Colors.grey.shade400 : Colors.teal,
+                  backgroundColor: isRegistered ? Colors.grey.shade400 : Colors.teal, 
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
                 ),
@@ -575,6 +494,24 @@ class _SecretaryTrainingsPageState extends State<SecretaryTrainingsPage> {
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Column(
+          children: [
+            Icon(Icons.event_busy, size: 60, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(message, textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
             ),
           ],
         ),
