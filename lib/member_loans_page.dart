@@ -119,9 +119,8 @@ class _MemberLoansPageState extends State<MemberLoansPage> {
               const Text("This request will be presented to all members in the next NHG meeting for approval.", style: TextStyle(fontSize: 12, color: Colors.grey)),
               const SizedBox(height: 20),
               
-              // FIXED DROPDOWN WITH OVERFLOW PROTECTION
               DropdownButtonFormField<String>(
-                isExpanded: true, // Prevents Right Overflow
+                isExpanded: true, 
                 value: _selectedLoanSource,
                 decoration: _inputStyle("Loan Source", Icons.account_balance_wallet),
                 items: _loanSources.map((s) => DropdownMenuItem(
@@ -129,7 +128,7 @@ class _MemberLoansPageState extends State<MemberLoansPage> {
                   child: Text(
                     s, 
                     style: const TextStyle(fontSize: 14),
-                    overflow: TextOverflow.ellipsis, // Extra safety for long text
+                    overflow: TextOverflow.ellipsis, 
                   )
                 )).toList(),
                 onChanged: (val) => setModalState(() => _selectedLoanSource = val),
@@ -171,7 +170,6 @@ class _MemberLoansPageState extends State<MemberLoansPage> {
     );
   }
 
-  // MODERN INPUT DECORATION HELPER
   InputDecoration _inputStyle(String label, IconData icon) {
     return InputDecoration(
       labelText: label,
@@ -226,10 +224,12 @@ class _MemberLoansPageState extends State<MemberLoansPage> {
   }
 
   Widget _buildLoanCard(Map<String, dynamic> loan) {
-    final status = loan['status'];
+    final String status = loan['status']?.toString() ?? 'Pending';
+    final String? remarks = loan['remarks'];
+    
     Color statusColor = Colors.orange;
-    if (status == 'Active') statusColor = Colors.green;
-    if (status.toString().toLowerCase().contains('rejected')) statusColor = Colors.red;
+    if (status == 'Active' || status == 'DISBURSED' || status == 'APPROVED') statusColor = Colors.green;
+    if (status.toLowerCase().contains('reject')) statusColor = Colors.red;
     if (status == 'Closed') statusColor = Colors.grey;
 
     return Card(
@@ -249,7 +249,7 @@ class _MemberLoansPageState extends State<MemberLoansPage> {
               children: [
                 Expanded(
                   child: Text(
-                    loan['loan_type'], 
+                    loan['loan_type'] ?? 'General Loan', 
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -257,7 +257,7 @@ class _MemberLoansPageState extends State<MemberLoansPage> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                  child: Text(status, style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                  child: Text(status.replaceAll('_', ' '), style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -273,6 +273,34 @@ class _MemberLoansPageState extends State<MemberLoansPage> {
                 _buildValue("EMI", loan['emi_amount'] != null ? _formatCurrency(loan['emi_amount']) : "N/A"),
               ],
             ),
+            
+            // NEW: Show Rejection Remarks if the loan was rejected
+            if (status.toLowerCase().contains('reject') && remarks != null && remarks.isNotEmpty) ...[
+              const SizedBox(height: 15),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  border: Border.all(color: Colors.red.shade200),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.error_outline, color: Colors.red, size: 16),
+                        SizedBox(width: 5),
+                        Text("Rejection Reason:", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(remarks, style: const TextStyle(color: Colors.black87, fontSize: 13)),
+                  ],
+                ),
+              ),
+            ]
           ],
         ),
       ),

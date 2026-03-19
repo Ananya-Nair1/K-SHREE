@@ -86,7 +86,6 @@ class _CDSFinancialSummaryPageState extends State<CDSFinancialSummaryPage> {
                   const Divider(height: 30),
                   _buildDetailRow("Total Records", _transactionCount.toString(), Colors.orange, Icons.receipt_long),
                   const SizedBox(height: 40),
-                  _buildInfoNote(),
                 ],
               ),
             ),
@@ -124,29 +123,19 @@ class _CDSFinancialSummaryPageState extends State<CDSFinancialSummaryPage> {
           child: Icon(icon, color: color),
         ),
         const SizedBox(width: 15),
-        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-        const Spacer(),
-        Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
-      ],
-    );
-  }
-
-  Widget _buildInfoNote() {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(color: Colors.blue.withOpacity(0.05), borderRadius: BorderRadius.circular(10)),
-      child: const Row(
-        children: [
-          Icon(Icons.info_outline, color: Colors.blue, size: 20),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              "This data is aggregated directly from the savings and loans tables.",
-              style: TextStyle(fontSize: 12, color: Colors.blueGrey),
-            ),
+        // FIXED OVERFLOW: Wrapped Title inside Expanded
+        Expanded(
+          child: Text(
+            title, 
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 10), // Replaced Spacer() with a fixed 10px gap
+        Text(
+          value, 
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
+        ),
+      ],
     );
   }
 }

@@ -15,19 +15,15 @@ class _MemberSearchPageState extends State<MemberSearchPage> {
   final TextEditingController _searchController = TextEditingController();
 
   Future<List<Map<String, dynamic>>> _fetchMembers() async {
-    // 1. Base query strictly pointing to 'Registered_Members' table
     var query = supabase
         .from('Registered_Members')
         .select()
         .eq('panchayat', widget.panchayat);
 
-    // 2. Apply search filter if the user typed something
     if (_searchQuery.isNotEmpty) {
-      // Searches both full_name and aadhar_number (case-insensitive)
       query = query.or('full_name.ilike.%$_searchQuery%,aadhar_number.ilike.%$_searchQuery%');
     }
 
-    // 3. Sort alphabetically by name
     final response = await query.order('full_name', ascending: true);
     return List<Map<String, dynamic>>.from(response as List);
   }
@@ -45,7 +41,6 @@ class _MemberSearchPageState extends State<MemberSearchPage> {
       ),
       body: Column(
         children: [
-          // --- SEARCH BAR ---
           Container(
             color: Colors.white,
             padding: const EdgeInsets.all(16.0),
@@ -80,7 +75,6 @@ class _MemberSearchPageState extends State<MemberSearchPage> {
             ),
           ),
 
-          // --- MEMBER LIST ---
           Expanded(
             child: FutureBuilder<List<Map<String, dynamic>>>(
               future: _fetchMembers(),
@@ -114,12 +108,10 @@ class _MemberSearchPageState extends State<MemberSearchPage> {
                   itemBuilder: (context, index) {
                     final member = members[index];
                     
-                    // Matching schema column names exactly
                     final String name = member['full_name'] ?? "Unknown Member";
                     final String aadhar = member['aadhar_number'] ?? "N/A";
                     final String ward = member['ward']?.toString() ?? "N/A";
                     final String unit = member['unit_number']?.toString() ?? "N/A";
-                    final String phone = member['phone_number'] ?? "No Phone";
                     final String designation = member['designation'] ?? "Member";
 
                     return Card(
@@ -136,7 +128,8 @@ class _MemberSearchPageState extends State<MemberSearchPage> {
                             style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.bold, fontSize: 20),
                           ),
                         ),
-                        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        // FIXED OVERFLOW: Added Expanded/ellipsis to title
+                        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -160,17 +153,23 @@ class _MemberSearchPageState extends State<MemberSearchPage> {
                             ),
                           ],
                         ),
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(designation == 'Member' ? Icons.person : Icons.star, 
-                                color: designation == 'Member' ? Colors.grey : Colors.amber, size: 20),
-                            const SizedBox(height: 4),
-                            Text(designation, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                          ],
+                        // FIXED OVERFLOW: Wrapped in SizedBox with Fixed Width and FittedBox
+                        trailing: SizedBox(
+                          width: 85, 
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(designation == 'Member' ? Icons.person : Icons.star, 
+                                  color: designation == 'Member' ? Colors.grey : Colors.amber, size: 20),
+                              const SizedBox(height: 4),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(designation, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                              ),
+                            ],
+                          ),
                         ),
                         onTap: () {
-                          // Optional: Show a dialog with full member details like Phone and Bank Info when tapped
                           _showMemberDetails(context, member);
                         },
                       ),

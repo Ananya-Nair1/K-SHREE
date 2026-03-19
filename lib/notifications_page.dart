@@ -15,8 +15,7 @@ class NotificationsPage extends StatelessWidget {
     
     // Extracting full geographic location
     final String unitNumber = userData['unit_number']?.toString() ?? '';
-    // Safely parsing ward as an integer to match DB schema (int8)
-    final int? wardId = int.tryParse(userData['ward']?.toString() ?? userData['ward_number']?.toString() ?? '');
+    final String wardId = (userData['ward']?.toString() ?? userData['ward_number']?.toString() ?? '');
     final String panchayat = userData['panchayat']?.toString() ?? '';
 
     return Scaffold(
@@ -28,25 +27,13 @@ class NotificationsPage extends StatelessWidget {
         elevation: 0,
       ),
       body: FutureBuilder(
-        future: (() {
-          var query = supabase.from('unit_notifications').select();
-
-          // Apply location filters
-          if (panchayat.isNotEmpty && panchayat != 'N/A') {
-            query = query.ilike('panchayat', panchayat); 
-          }
-          if (wardId != null) {
-            query = query.eq('ward', wardId);
-          }
-          if (unitNumber.isNotEmpty && unitNumber != 'N/A') {
-            query = query.eq('unit_number', unitNumber);
-          }
-
-          // FIXED: Use direct eq for cleaner matching and order by time
-          return query
+        // 1. Fetch ALL notifications for this panchayat intended for 'All Members'
+        future: supabase
+            .from('unit_notifications')
+            .select()
+            .ilike('panchayat', panchayat)
             .eq('target_audience', 'All Members')
-            .order('created_at', ascending: false);
-        })(),
+            .order('created_at', ascending: false),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: primaryColor));
@@ -55,7 +42,26 @@ class NotificationsPage extends StatelessWidget {
             return Center(child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
           }
 
-          final notifications = snapshot.data as List<dynamic>? ?? [];
+          final rawNotifications = snapshot.data as List<dynamic>? ?? [];
+
+          // 2. Filter the notifications so members only see what belongs to them
+          final notifications = rawNotifications.where((item) {
+            final String? nUnit = item['unit_number']?.toString();
+            final String? nWard = item['ward']?.toString();
+
+            // If the notification is specifically for a different unit, hide it.
+            if (nUnit != null && nUnit.isNotEmpty && nUnit != 'null' && nUnit != unitNumber) {
+              return false;
+            }
+
+            // If the notification is specifically for a different ward, hide it.
+            if (nWard != null && nWard.isNotEmpty && nWard != 'null' && nWard != wardId) {
+              return false;
+            }
+
+            // Otherwise (it matches their unit, their ward, or is global to the panchayat), show it!
+            return true;
+          }).toList();
 
           if (notifications.isEmpty) {
             return Center(

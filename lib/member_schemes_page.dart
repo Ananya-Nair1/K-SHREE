@@ -21,11 +21,11 @@ class _MemberSchemesPageState extends State<MemberSchemesPage> {
   final supabase = Supabase.instance.client;
   
   String _searchQuery = "";
-  List<dynamic> _appliedSchemeIds = []; 
+  // Maps scheme_id to the full application data
+  Map<String, Map<String, dynamic>> _userApplications = {}; 
   Map<String, dynamic>? _memberProfile;
   
-  // Filters
-  int _selectedFilterIndex = 0; // 0: All, 1: Eligible, 2: Applied
+  int _selectedFilterIndex = 0; 
   String _selectedCategory = "All Types"; 
 
   @override
@@ -45,12 +45,19 @@ class _MemberSchemesPageState extends State<MemberSchemesPage> {
     try {
       final response = await supabase
           .from('scheme_applications')
-          .select('scheme_id')
-          .eq('member_id', widget.memberId);
+          .select()
+          .eq('member_id', widget.memberId)
+          .order('created_at', ascending: false); 
       
       if (response != null && mounted) {
         setState(() {
-          _appliedSchemeIds = (response as List).map((a) => a['scheme_id']).toList();
+          _userApplications.clear();
+          for (var app in response as List) {
+            String schemeId = app['scheme_id'].toString();
+            if (!_userApplications.containsKey(schemeId)) {
+              _userApplications[schemeId] = app;
+            }
+          }
         });
       }
     } catch (e) {
@@ -106,7 +113,7 @@ class _MemberSchemesPageState extends State<MemberSchemesPage> {
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: FutureBuilder(
-        future: supabase.from('government_schemes').select().eq('is_active', true),
+        future: supabase.from('government_schemes').select().eq('is_active', true).order('created_at', ascending: false),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: Colors.teal));
@@ -117,7 +124,6 @@ class _MemberSchemesPageState extends State<MemberSchemesPage> {
 
           final allSchemes = snapshot.data as List<dynamic>? ?? [];
 
-          // Extract unique categories dynamically from the database
           final Set<String> uniqueCategories = {"All Types"};
           for (var s in allSchemes) {
             if (s['category'] != null && s['category'].toString().isNotEmpty) {
@@ -126,20 +132,16 @@ class _MemberSchemesPageState extends State<MemberSchemesPage> {
           }
           final categoryList = uniqueCategories.toList();
 
-          // Filtering Logic
           final schemes = allSchemes.where((s) {
-            // 1. Search Query Filter
             final matchesSearch = s['title'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
                                   s['category'].toString().toLowerCase().contains(_searchQuery.toLowerCase());
             if (!matchesSearch) return false;
 
-            // 2. Type/Category Filter
             if (_selectedCategory != "All Types" && s['category'] != _selectedCategory) {
               return false;
             }
 
-            // 3. Status/Eligibility Chips
-            bool alreadyApplied = _appliedSchemeIds.contains(s['id']);
+            bool alreadyApplied = _userApplications.containsKey(s['id'].toString());
             bool isEligible = _isEligibleForScheme(s);
 
             if (_selectedFilterIndex == 1 && !isEligible) return false; 
@@ -247,7 +249,7 @@ class _MemberSchemesPageState extends State<MemberSchemesPage> {
           children: [
             _buildStatusChip("All Status", 0, Icons.list),
             const SizedBox(width: 8),
-            _buildStatusChip("eligible", 1, Icons.auto_awesome),
+            _buildStatusChip("Eligible", 1, Icons.auto_awesome),
             const SizedBox(width: 8),
             _buildStatusChip("Already Applied", 2, Icons.check_circle),
           ],
@@ -278,8 +280,21 @@ class _MemberSchemesPageState extends State<MemberSchemesPage> {
   }
 
   Widget _buildSchemeCard(Map<String, dynamic> scheme) {
-    bool alreadyApplied = _appliedSchemeIds.contains(scheme['id']);
+    final application = _userApplications[scheme['id'].toString()];
+    bool alreadyApplied = application != null;
     bool isRecommended = _isEligibleForScheme(scheme);
+    
+    String? status = application?['status'];
+    String? remarks = application?['remarks'];
+
+    String buttonText = "Apply Anyway";
+    if (alreadyApplied) {
+      if (status == 'APPROVED') buttonText = "Application Approved";
+      else if (status == 'REJECTED') buttonText = "Re-Apply";
+      else buttonText = "Application Under Review";
+    } else if (isRecommended) {
+      buttonText = "View Details & Apply";
+    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -318,8 +333,20 @@ class _MemberSchemesPageState extends State<MemberSchemesPage> {
                       const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                        child: const Text("APPLIED", style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+                        decoration: BoxDecoration(
+                          color: status == 'APPROVED' ? Colors.green.withOpacity(0.1) : 
+                                 status == 'REJECTED' ? Colors.red.withOpacity(0.1) : 
+                                 Colors.orange.withOpacity(0.1), 
+                          borderRadius: BorderRadius.circular(8)
+                        ),
+                        child: Text(
+                          (status ?? "PENDING").replaceAll("_", " "), 
+                          style: TextStyle(
+                            color: status == 'APPROVED' ? Colors.green : 
+                                   status == 'REJECTED' ? Colors.red : Colors.orange, 
+                            fontSize: 10, fontWeight: FontWeight.bold
+                          )
+                        ),
                       ),
                     ]
                   ],
@@ -341,17 +368,46 @@ class _MemberSchemesPageState extends State<MemberSchemesPage> {
             ),
             const SizedBox(height: 4),
             Text(scheme['eligibility_criteria'] ?? 'Contact ADS for details', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            
+            // SHOW REJECTION REASON UI
+            if (status == 'REJECTED' && remarks != null && remarks.isNotEmpty) ...[
+              const SizedBox(height: 15),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  border: Border.all(color: Colors.red.shade200),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.error_outline, color: Colors.red, size: 16),
+                        SizedBox(width: 5),
+                        Text("Rejection Reason:", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(remarks, style: const TextStyle(color: Colors.black87, fontSize: 13)),
+                  ],
+                ),
+              ),
+            ],
+
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               height: 45,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: alreadyApplied ? Colors.grey : (isRecommended ? Colors.teal : Colors.blueGrey), 
+                  backgroundColor: alreadyApplied && status != 'REJECTED' ? Colors.grey : (isRecommended ? Colors.teal : Colors.blueGrey), 
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 0,
                 ),
-                onPressed: alreadyApplied ? null : () {
+                onPressed: alreadyApplied && status != 'REJECTED' ? null : () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -361,10 +417,10 @@ class _MemberSchemesPageState extends State<MemberSchemesPage> {
                         memberName: widget.memberName,
                       ),
                     ),
-                  ).then((_) => _loadData()); // Refresh list when returning
+                  ).then((_) => _loadData()); 
                 },
                 child: Text(
-                  alreadyApplied ? "Application Under Review" : (isRecommended ? "View Details & Apply" : "Apply Anyway"), 
+                  buttonText, 
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
                 ),
               ),

@@ -12,22 +12,26 @@ class CDSGrievanceManagementPage extends StatefulWidget {
 class _CDSGrievanceManagementPageState extends State<CDSGrievanceManagementPage> {
   final supabase = Supabase.instance.client;
 
-  // Function to finalize the grievance
   Future<void> _updateGrievanceStatus(String id, String newStatus) async {
     try {
       await supabase
-          .from('complaints') // UPDATED: Matches your schema table name
-          .update({'status': newStatus, 'resolved_by': 'CDS Chairperson'})
-          .eq('complaint_id', id); // UPDATED: Matches your schema primary key
+          .from('complaints') 
+          .update({'status': newStatus})
+          .eq('complaint_id', id); 
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Grievance marked as $newStatus"), backgroundColor: Colors.green)
         );
-        setState(() {}); // Refresh list
+        setState(() {}); 
       }
     } catch (e) {
       debugPrint("Update Error: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to update: $e"), backgroundColor: Colors.red)
+        );
+      }
     }
   }
 
@@ -44,7 +48,7 @@ class _CDSGrievanceManagementPageState extends State<CDSGrievanceManagementPage>
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: supabase
-            .from('complaints') // UPDATED: Matches your schema table name
+            .from('complaints') 
             .select()
             .eq('panchayat', widget.panchayat)
             .order('created_at', ascending: false),
@@ -68,7 +72,10 @@ class _CDSGrievanceManagementPageState extends State<CDSGrievanceManagementPage>
             itemBuilder: (context, index) {
               final item = grievances[index];
               final String status = item['status'] ?? 'PENDING';
-              final bool isResolved = status == 'RESOLVED' || status == 'ACKNOWLEDGED';
+              
+              // NEW LOGIC: Separating the states completely
+              final bool isFullyResolved = status == 'RESOLVED';
+              final bool isAcknowledged = status == 'ACKNOWLEDGED';
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -84,12 +91,20 @@ class _CDSGrievanceManagementPageState extends State<CDSGrievanceManagementPage>
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: isResolved ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                              color: isFullyResolved 
+                                  ? Colors.green.withOpacity(0.1) 
+                                  : (isAcknowledged ? Colors.blue.withOpacity(0.1) : Colors.orange.withOpacity(0.1)),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
                               status,
-                              style: TextStyle(color: isResolved ? Colors.green : Colors.orange, fontWeight: FontWeight.bold, fontSize: 10),
+                              style: TextStyle(
+                                color: isFullyResolved 
+                                    ? Colors.green 
+                                    : (isAcknowledged ? Colors.blue : Colors.orange), 
+                                fontWeight: FontWeight.bold, 
+                                fontSize: 10
+                              ),
                             ),
                           ),
                           Text(item['created_at'].toString().split('T')[0], style: const TextStyle(color: Colors.grey, fontSize: 12)),
@@ -100,29 +115,59 @@ class _CDSGrievanceManagementPageState extends State<CDSGrievanceManagementPage>
                       const SizedBox(height: 5),
                       Text(item['description'] ?? "No description provided.", style: const TextStyle(color: Colors.black87)),
                       const Divider(height: 25),
+                      
                       Row(
                         children: [
                           const Icon(Icons.person, size: 14, color: Colors.grey),
                           const SizedBox(width: 5),
-                          // UPDATED: safely checks for member_id or member_name depending on what you saved
-                          Text("Ward ${item['ward'] ?? 'N/A'} - Member: ${item['member_id'] ?? item['member_name'] ?? 'Unknown'}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                          const Spacer(),
-                          if (!isResolved) ...[
-                            TextButton(
-                              // UPDATED: Passes complaint_id instead of id
-                              onPressed: () => _updateGrievanceStatus(item['complaint_id'].toString(), 'ACKNOWLEDGED'),
-                              child: const Text("ACKNOWLEDGE"),
+                          Expanded(
+                            child: Text(
+                              "Ward ${item['ward'] ?? 'N/A'} - Member: ${item['member_id'] ?? item['member_name'] ?? 'Unknown'}", 
+                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-                              // UPDATED: Passes complaint_id instead of id
-                              onPressed: () => _updateGrievanceStatus(item['complaint_id'].toString(), 'RESOLVED'),
-                              child: const Text("RESOLVE", style: TextStyle(color: Colors.white)),
-                            ),
-                          ] else 
+                          ),
+                          if (isFullyResolved) 
                             const Icon(Icons.check_circle, color: Colors.green),
                         ],
                       ),
+
+                      // NEW LOGIC: Show buttons only if NOT fully resolved
+                      if (!isFullyResolved) ...[
+                        const SizedBox(height: 15),
+                        Row(
+                          children: [
+                            // Only show ACKNOWLEDGE if it is still PENDING
+                            if (!isAcknowledged) ...[
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () => _updateGrievanceStatus(item['complaint_id'].toString(), 'ACKNOWLEDGED'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.blue,
+                                    side: const BorderSide(color: Colors.blue),
+                                  ),
+                                  child: const FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text("ACKNOWLEDGE", style: TextStyle(fontWeight: FontWeight.bold)),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                            ],
+                            // ALWAYS show RESOLVE unless it is already fully resolved
+                            Expanded(
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                                onPressed: () => _updateGrievanceStatus(item['complaint_id'].toString(), 'RESOLVED'),
+                                child: const FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text("RESOLVE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),

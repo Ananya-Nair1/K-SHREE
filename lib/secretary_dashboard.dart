@@ -17,6 +17,8 @@ import 'secretary_savings_page.dart';
 import 'secretary_settings_page.dart';
 import 'secretary_notifications_page.dart'; 
 import 'login_page.dart'; 
+import 'secretary_elections_page.dart'; 
+
 class SecretaryDashboard extends StatefulWidget {
   final Map<String, dynamic> userData;
 
@@ -35,13 +37,11 @@ class _SecretaryDashboardState extends State<SecretaryDashboard> {
     _fetchPendingRequestsCount();
   }
 
-  // FIXED: Corrected Supabase select syntax for counting rows
   Future<void> _fetchPendingRequestsCount() async {
     final supabase = Supabase.instance.client;
     final unit = widget.userData['unit_number'].toString();
     
     try {
-      // In newer Supabase versions, use head:true to get count without data
       final response = await supabase
           .from('Pending_Approvals')
           .select('id')
@@ -153,7 +153,6 @@ class _SecretaryDashboardState extends State<SecretaryDashboard> {
                   mainAxisSpacing: 15,
                   childAspectRatio: 0.9,
                   children: [
-                    // FIXED: Correctly using widget.userData inside the builder
                     _buildModernGridItem('Meetings', Icons.calendar_month, Colors.deepPurple, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MeetingManagementPage(userData: widget.userData)))),
                     _buildModernGridItem('Members', Icons.groups, Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => UnitMembersPage(userData: widget.userData)))),
                     _buildModernGridItem('Reports', Icons.analytics, Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SecretaryReportsPage(userData: widget.userData)))),
@@ -162,6 +161,7 @@ class _SecretaryDashboardState extends State<SecretaryDashboard> {
                     _buildModernGridItem('Trainings', Icons.school, Colors.orange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SecretaryTrainingsPage(userData: widget.userData)))),
                     _buildModernGridItem('Savings', Icons.savings, Colors.pink, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SavingsPage(userData: widget.userData)))),
                     _buildModernGridItem('Announce', Icons.campaign, Colors.deepOrange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SecretaryNotificationsPage(userData: widget.userData)))),
+                    _buildModernGridItem('Election', Icons.how_to_vote, Colors.redAccent, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SecretaryElectionsPage(userData: widget.userData)))),
                     _buildModernGridItem('Settings', Icons.settings, Colors.grey, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SettingsPage(userData: widget.userData)))),
                   ],
                 ),

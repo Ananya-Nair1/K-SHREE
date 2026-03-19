@@ -12,21 +12,73 @@ class CDSSchemeApprovalsPage extends StatefulWidget {
 class _CDSSchemeApprovalsPageState extends State<CDSSchemeApprovalsPage> {
   final supabase = Supabase.instance.client;
 
-  Future<void> _updateApplicationStatus(String id, String status) async {
+  Future<void> _updateApplicationStatus(Map<String, dynamic> app, String status, {String? reason}) async {
     try {
-      await supabase.from('scheme_applications').update({
-        'status': status,
-      }).eq('id', id);
+      final updateData = {'status': status};
+      if (reason != null && reason.isNotEmpty) updateData['remarks'] = reason;
+
+      await supabase.from('scheme_applications').update(updateData).eq('id', app['id']);
+
+      // Automatically send notification on rejection
+      if (status == 'REJECTED' && reason != null) {
+        await supabase.from('unit_notifications').insert({
+          'title': 'Scheme Application Update',
+          'message': 'Application for Scheme ID: ${app['scheme_id']} was not approved. Reason: $reason',
+          'panchayat': app['panchayat'],
+          'ward': app['ward'],
+          'unit_number': app['unit_number'] ?? 'N/A',
+          'target_audience': 'All Members',
+          'is_urgent': true,
+        });
+      }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Application $status"), backgroundColor: Colors.teal),
-        );
-        setState(() {}); // Refresh the list
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Application $status"), backgroundColor: Colors.teal));
+        setState(() {}); 
       }
     } catch (e) {
       debugPrint("Update Error: $e");
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
     }
+  }
+
+  // Dialog box for Rejection
+  Future<void> _showRejectDialog(Map<String, dynamic> app) async {
+    final TextEditingController reasonController = TextEditingController();
+
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Reject Application", style: TextStyle(color: Colors.red)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Please provide a reason. The member will be notified."),
+            const SizedBox(height: 15),
+            TextField(
+              controller: reasonController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: "Reason for Rejection",
+                border: OutlineInputBorder(),
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.red)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel", style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(context); 
+              _updateApplicationStatus(app, 'REJECTED', reason: reasonController.text);
+            },
+            child: const Text("Confirm Rejection", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -36,40 +88,25 @@ class _CDSSchemeApprovalsPageState extends State<CDSSchemeApprovalsPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F6),
       appBar: AppBar(
-        title: const Text("Scheme Applications", 
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text("Scheme Applications", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: primaryColor,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: supabase
-            .from('scheme_applications')
-            // FIXED: Changed the join to 'government_schemes'
-            .select('*, government_schemes(title)') 
-            .eq('status', 'PENDING'),
+        future: supabase.from('scheme_applications').select('*, government_schemes(title)').eq('status', 'Pending at CDS'), 
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: primaryColor));
-          }
-
-          if (snapshot.hasError) {
-            return Center(child: Text("Error: ${snapshot.error}"));
-          }
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: primaryColor));
+          if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
 
           final applications = snapshot.data ?? [];
-          if (applications.isEmpty) {
-            return const Center(child: Text("No pending scheme applications."));
-          }
+          if (applications.isEmpty) return const Center(child: Text("No scheme applications pending at CDS level.", style: TextStyle(color: Colors.grey)));
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: applications.length,
             itemBuilder: (context, index) {
               final app = applications[index];
-              // FIXED: Getting the title from 'government_schemes'
-              final schemeTitle = app['government_schemes'] != null 
-                  ? app['government_schemes']['title'] 
-                  : "Scheme ID: ${app['scheme_id']}";
+              final schemeTitle = app['government_schemes'] != null ? app['government_schemes']['title'] : "Scheme ID: ${app['scheme_id']}";
 
               return Card(
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -82,11 +119,8 @@ class _CDSSchemeApprovalsPageState extends State<CDSSchemeApprovalsPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(
-                            child: Text(schemeTitle, 
-                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal)),
-                          ),
-                          const Icon(Icons.assignment, color: Colors.grey, size: 20),
+                          Expanded(child: Text(schemeTitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal))),
+                          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(5)), child: const Text("AWAITING CDS", style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold))),
                         ],
                       ),
                       const Divider(height: 20),
@@ -98,7 +132,7 @@ class _CDSSchemeApprovalsPageState extends State<CDSSchemeApprovalsPage> {
                         children: [
                           Expanded(
                             child: OutlinedButton(
-                              onPressed: () => _updateApplicationStatus(app['id'].toString(), 'REJECTED'),
+                              onPressed: () => _showRejectDialog(app), // Trigger Dialog
                               style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
                               child: const Text("REJECT"),
                             ),
@@ -106,7 +140,7 @@ class _CDSSchemeApprovalsPageState extends State<CDSSchemeApprovalsPage> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: ElevatedButton(
-                              onPressed: () => _updateApplicationStatus(app['id'].toString(), 'APPROVED'),
+                              onPressed: () => _updateApplicationStatus(app, 'APPROVED'),
                               style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
                               child: const Text("APPROVE", style: TextStyle(color: Colors.white)),
                             ),
