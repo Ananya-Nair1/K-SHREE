@@ -17,6 +17,8 @@ class _ADSLoanRequestsPageState extends State<ADSLoanRequestsPage> {
   bool _isUpdating = false;
   List<Map<String, dynamic>> loanRequests = [];
 
+  final Color adsBlue = const Color(0xFF2B6CB0); // Consistent ADS Theme Color
+
   @override
   void initState() {
     super.initState();
@@ -110,10 +112,10 @@ class _ADSLoanRequestsPageState extends State<ADSLoanRequestsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9), // Light Slate Blue background
+      backgroundColor: const Color(0xFFF4F8FB), 
       appBar: AppBar(
         title: const Text('ADS Verification', style: TextStyle(fontWeight: FontWeight.w700)),
-        backgroundColor: Colors.indigo.shade800,
+        backgroundColor: adsBlue,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
@@ -125,10 +127,11 @@ class _ADSLoanRequestsPageState extends State<ADSLoanRequestsPage> {
         ],
       ),
       body: _isFetching
-          ? const Center(child: CircularProgressIndicator(color: Colors.indigo))
+          ? Center(child: CircularProgressIndicator(color: adsBlue))
           : loanRequests.isEmpty
               ? _buildEmptyState()
               : RefreshIndicator(
+                  color: adsBlue,
                   onRefresh: _fetchADSLevelLoans,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
@@ -144,7 +147,7 @@ class _ADSLoanRequestsPageState extends State<ADSLoanRequestsPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.fact_check_outlined, size: 80, color: Colors.indigo.withOpacity(0.2)),
+          Icon(Icons.fact_check_outlined, size: 80, color: adsBlue.withOpacity(0.2)),
           const SizedBox(height: 16),
           const Text("No pending loan requests for your ward", 
             style: TextStyle(fontSize: 15, color: Colors.blueGrey, fontWeight: FontWeight.w500)),
@@ -163,7 +166,7 @@ class _ADSLoanRequestsPageState extends State<ADSLoanRequestsPage> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
-          BoxShadow(color: Colors.indigo.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5)),
+          BoxShadow(color: adsBlue.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5)),
         ],
       ),
       child: Column(
@@ -184,15 +187,15 @@ class _ADSLoanRequestsPageState extends State<ADSLoanRequestsPage> {
                               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
                           const SizedBox(height: 4),
                           Text("NHG Unit: ${member['unit_number']}",
-                              style: TextStyle(color: Colors.indigo.shade600, fontWeight: FontWeight.w600, fontSize: 13)),
+                              style: TextStyle(color: adsBlue, fontWeight: FontWeight.w600, fontSize: 13)),
                         ],
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(12)),
+                      decoration: BoxDecoration(color: adsBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
                       child: Text("₹${loan['principal_amount']}",
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.indigo.shade900)),
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: adsBlue)),
                     ),
                   ],
                 ),
@@ -220,7 +223,7 @@ class _ADSLoanRequestsPageState extends State<ADSLoanRequestsPage> {
                 const SizedBox(height: 24),
                 
                 if (_isUpdating)
-                  const Center(child: CircularProgressIndicator())
+                  Center(child: CircularProgressIndicator(color: adsBlue))
                 else
                   Row(
                     children: [
@@ -241,7 +244,7 @@ class _ADSLoanRequestsPageState extends State<ADSLoanRequestsPage> {
                         child: ElevatedButton(
                           onPressed: () => _processLoan(loan['id'], 'Pending at CDS'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.indigo.shade700,
+                            backgroundColor: adsBlue,
                             foregroundColor: Colors.white,
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(vertical: 16),

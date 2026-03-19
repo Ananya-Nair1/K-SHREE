@@ -11,13 +11,59 @@ import 'ads_loan_requests_page.dart';
 import 'ads_complaints_page.dart'; 
 import 'ads_chairperson_loans_page.dart'; 
 import 'ads_savings_page.dart';
-import 'ads_savings_page.dart';
 import 'ads_training_page.dart';
+import 'ads_scheme_management_page.dart';
+// Add these two new imports for the Election system
+import 'ads_manage_election_page.dart';
+import 'ads_election_results_page.dart';
 
 class ADSChairpersonDashboard extends StatelessWidget {
   final Map<String, dynamic> userData;
 
   const ADSChairpersonDashboard({super.key, required this.userData});
+
+  // --- NEW: Bottom Sheet for Election Options ---
+  void _showElectionOptions(BuildContext context, Map<String, dynamic> userData) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Ward Elections", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF2D3748))),
+            const SizedBox(height: 20),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(backgroundColor: Colors.redAccent.withOpacity(0.1), child: const Icon(Icons.how_to_reg, color: Colors.redAccent)),
+              title: const Text("Manage Election", style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text("Start or stop a ward-wide election"),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => ADSManageElectionPage(userData: userData)));
+              },
+            ),
+            const Divider(height: 16),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(backgroundColor: Colors.indigo.withOpacity(0.1), child: const Icon(Icons.bar_chart, color: Colors.indigo)),
+              title: const Text("View Results", style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text("See live tally and candidate standings"),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => ADSElectionResultsPage(userData: userData)));
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -128,10 +174,6 @@ class ADSChairpersonDashboard extends StatelessWidget {
                             _buildInfoChip(Icons.star, "Role", designation, primaryColor),
                           ],
                         ),
-                        const SizedBox(height: 15),
-                        const Divider(color: Color(0xFFEDF2F7), thickness: 1),
-                        const SizedBox(height: 10),
-                        _buildAttendanceBar(), 
                       ],
                     ),
                   ),
@@ -256,7 +298,19 @@ class ADSChairpersonDashboard extends StatelessWidget {
                       );
                     },
                   ),
-                  _buildModernGridItem('Schemes', Icons.account_balance, Colors.blue),
+                  _buildModernGridItem(
+                    'Schemes', 
+                    Icons.assignment_turned_in_rounded, 
+                    Colors.blue,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ADSSchemesManagementPage(userData: userData),
+                        ),
+                      );
+                    },
+                  ),
                   _buildModernGridItem(
                     'Trainings', 
                     Icons.school, 
@@ -283,7 +337,15 @@ class ADSChairpersonDashboard extends StatelessWidget {
                       );
                     },
                   ),
-                  _buildModernGridItem('Elections', Icons.how_to_reg, Colors.redAccent),
+                  
+                  // --- NEW: Elections Grid Item connected to Bottom Sheet ---
+                  _buildModernGridItem(
+                    'Elections', 
+                    Icons.how_to_reg, 
+                    Colors.redAccent,
+                    onTap: () => _showElectionOptions(context, userData),
+                  ),
+
                   _buildModernGridItem(
                     'Settings', 
                     Icons.settings, 
@@ -415,45 +477,6 @@ class ADSChairpersonDashboard extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildAttendanceBar() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text("2026 Attendance", style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
-        const SizedBox(height: 8),
-        Stack(
-          children: [
-            Container(
-              height: 8,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE2E8F0),
-                borderRadius: BorderRadius.circular(5),
-              ),
-            ),
-            FractionallySizedBox(
-              widthFactor: 0.88, 
-              child: Container(
-                height: 8,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2B6CB0), 
-                  borderRadius: BorderRadius.circular(5),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text("22/25 meetings attended", style: TextStyle(fontSize: 12, color: Colors.grey)),
-            Text("88%", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2D3748))),
-          ],
-        )
-      ],
     );
   }
 }

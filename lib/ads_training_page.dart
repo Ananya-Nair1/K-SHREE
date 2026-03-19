@@ -13,6 +13,8 @@ class ADSTrainingsPage extends StatefulWidget {
 
 class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
   final supabase = Supabase.instance.client;
+  final Color adsBlue = const Color(0xFF2B6CB0); // ADS Theme Color
+  
   Set<int> _registeredTrainingIds = {};
   bool _isLoadingRegistrations = true;
 
@@ -94,7 +96,6 @@ class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
     DateTime? selectedDate;
     TimeOfDay? selectedTime;
     
-    // Dropdown choices and default selected value for Category
     String selectedCategory = 'General Training';
     final List<String> categories = [
       'General Training',
@@ -105,7 +106,6 @@ class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
       'Leadership & Management'
     ];
 
-    // Dropdown choices and default selected value for Venue
     String selectedVenue = 'Panchayat Office';
     final List<String> venues = [
       'Panchayat Office',
@@ -128,7 +128,7 @@ class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text("Add New Training", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal)),
+                  Text("Add New Training", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: adsBlue)),
                   const SizedBox(height: 15),
                   
                   SegmentedButton<String>(
@@ -140,47 +140,58 @@ class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
                     onSelectionChanged: (Set<String> newSelection) {
                       setSheetState(() => trainingType = newSelection.first);
                     },
+                    style: ButtonStyle(
+                      backgroundColor: MaterialStateProperty.resolveWith<Color>((Set<MaterialState> states) {
+                        if (states.contains(MaterialState.selected)) return adsBlue.withOpacity(0.1);
+                        return Colors.transparent;
+                      }),
+                      foregroundColor: MaterialStateProperty.resolveWith<Color>((Set<MaterialState> states) {
+                        if (states.contains(MaterialState.selected)) return adsBlue;
+                        return Colors.black87;
+                      }),
+                    ),
                   ),
                   const SizedBox(height: 20),
 
-                  TextField(controller: titleController, decoration: const InputDecoration(labelText: "Program Title", border: OutlineInputBorder())),
+                  TextField(
+                    controller: titleController, 
+                    decoration: InputDecoration(labelText: "Program Title", border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))
+                  ),
                   const SizedBox(height: 10),
                   
-                  // Category Dropdown
                   DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(labelText: "Category", border: OutlineInputBorder()),
+                    decoration: InputDecoration(labelText: "Category", border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
                     value: selectedCategory,
-                    items: categories.map((category) {
-                      return DropdownMenuItem(value: category, child: Text(category));
-                    }).toList(),
+                    items: categories.map((category) => DropdownMenuItem(value: category, child: Text(category))).toList(),
                     onChanged: (value) {
-                      if (value != null) {
-                        setSheetState(() => selectedCategory = value);
-                      }
+                      if (value != null) setSheetState(() => selectedCategory = value);
                     },
                   ),
                   const SizedBox(height: 10),
 
                   if (trainingType == 'Video') ...[
-                    TextField(controller: linkController, decoration: const InputDecoration(labelText: "YouTube Link", border: OutlineInputBorder())),
+                    TextField(
+                      controller: linkController, 
+                      decoration: InputDecoration(labelText: "YouTube Link", border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))
+                    ),
                   ] else ...[
-                    TextField(controller: descController, maxLines: 2, decoration: const InputDecoration(labelText: "Description", border: OutlineInputBorder())),
+                    TextField(
+                      controller: descController, 
+                      maxLines: 2, 
+                      decoration: InputDecoration(labelText: "Description", border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))
+                    ),
                     const SizedBox(height: 10),
                     
-                    // Venue Dropdown
                     DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(labelText: "Venue", border: OutlineInputBorder()),
+                      decoration: InputDecoration(labelText: "Venue", border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
                       value: selectedVenue,
-                      items: venues.map((venue) {
-                        return DropdownMenuItem(value: venue, child: Text(venue));
-                      }).toList(),
+                      items: venues.map((venue) => DropdownMenuItem(value: venue, child: Text(venue))).toList(),
                       onChanged: (value) {
-                        if (value != null) {
-                          setSheetState(() => selectedVenue = value);
-                        }
+                        if (value != null) setSheetState(() => selectedVenue = value);
                       },
                     ),
                     const SizedBox(height: 10),
+                    
                     Row(
                       children: [
                         Expanded(
@@ -190,7 +201,7 @@ class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
                               if (date != null) setSheetState(() => selectedDate = date);
                             },
                             child: InputDecorator(
-                              decoration: const InputDecoration(labelText: "Date", border: OutlineInputBorder()),
+                              decoration: InputDecoration(labelText: "Date", border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
                               child: Text(selectedDate == null ? "Select Date" : DateFormat('yyyy-MM-dd').format(selectedDate!)),
                             ),
                           ),
@@ -203,7 +214,7 @@ class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
                               if (time != null) setSheetState(() => selectedTime = time);
                             },
                             child: InputDecorator(
-                              decoration: const InputDecoration(labelText: "Time", border: OutlineInputBorder()),
+                              decoration: InputDecoration(labelText: "Time", border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
                               child: Text(selectedTime == null ? "Select Time" : selectedTime!.format(context)),
                             ),
                           ),
@@ -216,20 +227,27 @@ class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                      style: ElevatedButton.styleFrom(backgroundColor: adsBlue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                       onPressed: () async {
                         if (titleController.text.isEmpty) return;
+
+                        // FIX: Safely format the time for the SQL database (HH:mm:00)
+                        String? formattedTime;
+                        if (selectedTime != null && trainingType == 'Live') {
+                          formattedTime = "${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}:00";
+                        }
                         
                         try {
                           await supabase.from('trainings').insert({
                             'program_name': titleController.text,
                             'training_type': trainingType,
                             'category': selectedCategory,
+                            // Null checks applied appropriately based on type
                             'description': trainingType == 'Live' ? descController.text : null,
                             'video_link': trainingType == 'Video' ? linkController.text : null,
-                            'venue': trainingType == 'Live' ? selectedVenue : 'YouTube', // Send 'YouTube' instead of null
-                            'training_date': selectedDate?.toIso8601String(),
-                            'training_time': selectedTime?.format(context),
+                            'venue': trainingType == 'Live' ? selectedVenue : null, 
+                            'training_date': trainingType == 'Live' ? selectedDate?.toIso8601String() : null,
+                            'training_time': formattedTime,
                             'ward': (widget.userData['ward'] ?? widget.userData['ward_number'])?.toString() ?? '',
                             'panchayat': widget.userData['panchayat']?.toString() ?? '',
                             'district': widget.userData['district']?.toString() ?? '',
@@ -238,13 +256,13 @@ class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
 
                           if (mounted) {
                             Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Training Published!"), backgroundColor: Colors.teal));
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Training Published!"), backgroundColor: Colors.green));
                           }
                         } catch (e) {
                           if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
                         }
                       },
-                      child: const Text("Publish Training", style: TextStyle(color: Colors.white, fontSize: 16)),
+                      child: const Text("Publish Training", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -267,14 +285,13 @@ class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
       backgroundColor: const Color(0xFFF4F7F6),
       appBar: AppBar(
         title: const Text('Skill Trainings', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.teal, 
+        backgroundColor: adsBlue, 
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: _isLoadingRegistrations 
-        ? const Center(child: CircularProgressIndicator(color: Colors.teal))
+        ? Center(child: CircularProgressIndicator(color: adsBlue))
         : StreamBuilder<List<Map<String, dynamic>>>(
-        // Fetch trainings matching this ADS's ward, panchayat, and district
         stream: supabase.from('trainings')
             .select()
             .eq('ward', userWard)
@@ -285,7 +302,7 @@ class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
             .map((data) => List<Map<String, dynamic>>.from(data)),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-             return const Center(child: CircularProgressIndicator(color: Colors.teal));
+             return Center(child: CircularProgressIndicator(color: adsBlue));
           }
           
           final allTrainings = snapshot.data ?? [];
@@ -355,7 +372,7 @@ class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
       ),
       // --- FAB TO ADD NEW TRAINING ---
       floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.teal,
+        backgroundColor: adsBlue,
         onPressed: _showAddTrainingDialog,
         child: const Icon(Icons.add, color: Colors.white),
       ),
@@ -431,8 +448,8 @@ class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(12)),
-                  child: Icon(Icons.model_training, color: Colors.teal.shade700, size: 28), 
+                  decoration: BoxDecoration(color: adsBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                  child: Icon(Icons.model_training, color: adsBlue, size: 28), 
                 ),
                 const SizedBox(width: 15),
                 Expanded(
@@ -461,13 +478,14 @@ class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
             const Divider(height: 30),
             Row(
               children: [
-                const Icon(Icons.calendar_today, size: 16, color: Colors.teal), 
+                Icon(Icons.calendar_today, size: 16, color: adsBlue), 
                 const SizedBox(width: 8),
                 Text(formattedDate, style: const TextStyle(fontWeight: FontWeight.bold)),
                 const Spacer(),
                 const Icon(Icons.access_time, size: 16, color: Colors.orange),
                 const SizedBox(width: 8),
-                Text(training['training_time'] ?? '10:00 AM', style: const TextStyle(fontWeight: FontWeight.bold)),
+                // Show a clean fallback if time is null
+                Text(training['training_time']?.toString().substring(0, 5) ?? 'TBA', style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
             const SizedBox(height: 12),
@@ -475,7 +493,7 @@ class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
               children: [
                 const Icon(Icons.location_on, size: 16, color: Colors.redAccent),
                 const SizedBox(width: 8),
-                Expanded(child: Text(training['venue'] ?? 'CDS Main Hall', style: const TextStyle(color: Colors.blueGrey))),
+                Expanded(child: Text(training['venue'] ?? 'Location TBA', style: const TextStyle(color: Colors.blueGrey))),
               ],
             ),
             const SizedBox(height: 20),
@@ -484,7 +502,7 @@ class _ADSTrainingsPageState extends State<ADSTrainingsPage> {
               height: 50,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isRegistered ? Colors.grey.shade400 : Colors.teal, 
+                  backgroundColor: isRegistered ? Colors.grey.shade400 : adsBlue, 
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
                 ),
