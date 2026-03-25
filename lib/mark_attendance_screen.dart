@@ -17,6 +17,10 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isLocationSet = false;
+  
+  // Tracks if meeting is finished to lock the UI
+  bool _isFinished = false;
+  
   String _searchQuery = "";
   
   List<Map<String, dynamic>> _members = [];
@@ -32,15 +36,16 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
     final secUnit = widget.secretaryData['unit_number']?.toString() ?? '';
 
     try {
-      // 1. Check if GPS location is already set for this meeting
+      // 1. Check GPS location and status for this meeting
       final meetResponse = await supabase
           .from('meetings')
-          .select('latitude, longitude')
+          .select('latitude, longitude, status')
           .eq('meet_id', widget.meetId)
           .maybeSingle();
       
-      if (meetResponse != null && meetResponse['latitude'] != null) {
-        _isLocationSet = true;
+      if (meetResponse != null) {
+        if (meetResponse['latitude'] != null) _isLocationSet = true;
+        if (meetResponse['status'] == 'HELD') _isFinished = true;
       }
 
       // 2. Fetch Members only for this unit
@@ -73,7 +78,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
     }
   }
 
-  // --- NEW: Capture Venue GPS (Replaces Map Logic) ---
+  // --- Capture Venue GPS ---
   Future<void> _captureVenueLocation() async {
     setState(() => _isSaving = true);
     try {
@@ -115,9 +120,9 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
         return {
           'meet_id': widget.meetId,
           'aadhar_number': aadhar,
-          'full_name': m['full_name'], // Added for reporting
+          'full_name': m['full_name'], 
           'status': _attendanceState[aadhar] == true ? 'Present' : 'Absent',
-          'timestamp': DateTime.now().toIso8601String(),
+          'created_at': DateTime.now().toIso8601String(), 
         };
       }).toList();
 
@@ -128,7 +133,11 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Meeting Closed & Attendance Saved!"), backgroundColor: Colors.teal));
-        Navigator.pop(context);
+        // Lock the screen
+        setState(() {
+          _isFinished = true;
+          _isSaving = false;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -155,46 +164,47 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
         ? const Center(child: CircularProgressIndicator(color: Colors.indigo)) 
         : Column(
         children: [
-          // GPS Status Card
-          Container(
-            padding: const EdgeInsets.all(20),
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: _isLocationSet ? Colors.green.shade50 : Colors.orange.shade50,
-              border: Border(bottom: BorderSide(color: Colors.grey.shade300))
-            ),
-            child: Column(
-              children: [
-                Icon(
-                  _isLocationSet ? Icons.verified_user : Icons.location_off, 
-                  color: _isLocationSet ? Colors.green : Colors.orange, 
-                  size: 35
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  _isLocationSet ? "Venue GPS Locked" : "GPS Not Set",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _isLocationSet ? Colors.green.shade700 : Colors.orange.shade800),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  _isLocationSet 
-                    ? "Members can now use 'Mark Attendance' on their phones."
-                    : "Stand at the meeting spot and tap the button below to enable mobile attendance.",
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.blueGrey, fontSize: 12),
-                ),
-                if (!_isLocationSet) ...[
-                  const SizedBox(height: 15),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
-                    onPressed: _isSaving ? null : _captureVenueLocation,
-                    icon: const Icon(Icons.my_location, size: 18),
-                    label: const Text("Capture Venue Location"),
+          // GPS Status Card - Hide if meeting is finished
+          if (!_isFinished)
+            Container(
+              padding: const EdgeInsets.all(20),
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: _isLocationSet ? Colors.green.shade50 : Colors.orange.shade50,
+                border: Border(bottom: BorderSide(color: Colors.grey.shade300))
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    _isLocationSet ? Icons.verified_user : Icons.location_off, 
+                    color: _isLocationSet ? Colors.green : Colors.orange, 
+                    size: 35
                   ),
-                ]
-              ],
+                  const SizedBox(height: 10),
+                  Text(
+                    _isLocationSet ? "Venue GPS Locked" : "GPS Not Set",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _isLocationSet ? Colors.green.shade700 : Colors.orange.shade800),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    _isLocationSet 
+                      ? "Members can now use 'Mark Attendance' on their phones."
+                      : "Stand at the meeting spot and tap the button below to enable mobile attendance.",
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.blueGrey, fontSize: 12),
+                  ),
+                  if (!_isLocationSet) ...[
+                    const SizedBox(height: 15),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+                      onPressed: _isSaving ? null : _captureVenueLocation,
+                      icon: const Icon(Icons.my_location, size: 18),
+                      label: const Text("Capture Venue Location"),
+                    ),
+                  ]
+                ],
+              ),
             ),
-          ),
           
           // Search Bar
           Padding(
@@ -228,7 +238,8 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
                     title: Text(member['full_name'], style: const TextStyle(fontWeight: FontWeight.w600)),
                     subtitle: Text("ID: $aadhar", style: const TextStyle(fontSize: 11)),
                     value: isPresent,
-                    onChanged: (val) => setState(() => _attendanceState[aadhar] = val ?? false),
+                    // Disable checkboxes if meeting is finished
+                    onChanged: _isFinished ? null : (val) => setState(() => _attendanceState[aadhar] = val ?? false),
                     secondary: CircleAvatar(
                       backgroundColor: isPresent ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
                       child: Icon(isPresent ? Icons.person : Icons.person_outline, color: isPresent ? Colors.green : Colors.grey),
@@ -246,17 +257,29 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
               color: Colors.white,
               borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo, 
-                minimumSize: const Size(double.infinity, 50),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: _isSaving ? null : _submitAttendance,
-              child: _isSaving 
-                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
-                : const Text("Save & End Meeting", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
+            child: _isFinished 
+              // UI when meeting is finished (Disabled button)
+              ? ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey, 
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: null, // Keeps it disabled
+                  child: const Text("Meeting Ended", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                )
+              // UI when meeting is active
+              : ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo, 
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: _isSaving ? null : _submitAttendance,
+                  child: _isSaving 
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                    : const Text("Save & End Meeting", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
           )
         ],
       ),

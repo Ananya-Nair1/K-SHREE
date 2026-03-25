@@ -82,8 +82,6 @@ class _CDSDashboardState extends State<CDSDashboard> {
               chairperson: widget.userData['full_name'] ?? "N/A",
               totalMembers: _totalMembers,
               totalADS: _totalADS,
-              savings: 0.0, // You can fetch real totals here
-              loans: 0.0,
             ),
           ),
           IconButton(

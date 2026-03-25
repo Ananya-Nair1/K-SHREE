@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart'; 
 import 'package:latlong2/latlong.dart'; 
+import 'package:url_launcher/url_launcher.dart'; 
 import 'map_picker_page.dart'; 
 
 class MemberMeetingsPage extends StatefulWidget {
@@ -62,19 +63,40 @@ class _MemberMeetingsPageState extends State<MemberMeetingsPage> {
       int presentCount = 0;
       int heldMeetingsCount = 0;
       final String memberUnit = memberProfile['unit_number'].toString();
+      final DateTime now = DateTime.now();
 
       for (var meeting in meetingsResponse) {
-        bool isDirectUnit = meeting['unit_name']?.toString() == memberUnit;
-        bool isNhgMeeting = meeting['meeting_level']?.toString().toUpperCase().contains('NHG') ?? false;
+        final String mUnitName = meeting['unit_name']?.toString() ?? '';
+        final String mUnitNum = meeting['unit_number']?.toString() ?? '';
+        
+        bool isDirectUnit = mUnitNum == memberUnit || 
+                            mUnitName == memberUnit || 
+                            mUnitName.replaceAll(RegExp(r'[^0-9]'), '') == memberUnit;
+
+        final String mLevel = meeting['meeting_level']?.toString().toUpperCase() ?? '';
+        bool isNhgMeeting = mLevel.isEmpty || mLevel.contains('NHG') || mLevel.contains('UNIT');
 
         if (isDirectUnit && isNhgMeeting) {
-          String status = attendanceMap[meeting['meet_id'].toString()] ?? 'Held';
+          String status = attendanceMap[meeting['meet_id'].toString()] ?? 'Absent';
+          bool isPresent = status.toLowerCase() == 'present';
           
-          if (meeting['status'] == 'HELD' || meeting['status'] == 'COMPLETED') {
-            heldMeetingsCount++;
-            if (status == 'Present') presentCount++;
+          // Match the calculation logic with the UI's time limit logic
+          DateTime meetingDateTime;
+          try {
+            meetingDateTime = DateTime.parse("${meeting['meeting_date']} ${meeting['meeting_time']}");
+          } catch (e) {
+            meetingDateTime = now; 
           }
-          filteredMeetings.add({...meeting, 'member_status': status});
+          final bool isTooLate = now.isAfter(meetingDateTime.add(const Duration(hours: 4)));
+          final String mStatus = meeting['status']?.toString().toUpperCase() ?? '';
+
+          // Count it in the math if the Secretary marked it HELD, or if time expired (ABSENT), or if they marked PRESENT
+          if (mStatus == 'HELD' || mStatus == 'COMPLETED' || isTooLate || isPresent) {
+            heldMeetingsCount++;
+            if (isPresent) presentCount++;
+          }
+          
+          filteredMeetings.add({...meeting, 'member_status': isPresent ? 'Present' : 'Absent'});
         }
       }
 
@@ -119,10 +141,8 @@ class _MemberMeetingsPageState extends State<MemberMeetingsPage> {
         'meet_id': meeting['meet_id'],
         'aadhar_number': widget.memberId,
         'status': 'Present',
-        // FIXED: Removed 'method': 'App GPS' because it doesn't exist in the DB!
       });
 
-      // Update meeting status so Secretary can add a report
       try {
         await supabase
             .from('meetings')
@@ -220,8 +240,9 @@ class _MemberMeetingsPageState extends State<MemberMeetingsPage> {
     final String memberStatus = meeting['member_status'] ?? 'Absent';
     final bool isPresent = memberStatus == 'Present';
     final bool hasLocation = meeting['latitude'] != null;
+    
+    final bool hasReport = meeting['report'] != null && meeting['report'].toString().isNotEmpty;
 
-    // --- STRICT TIME LOCK LOGIC ---
     DateTime meetingDateTime;
     try {
       meetingDateTime = DateTime.parse("${meeting['meeting_date']} ${meeting['meeting_time']}");
@@ -231,16 +252,12 @@ class _MemberMeetingsPageState extends State<MemberMeetingsPage> {
 
     final DateTime now = DateTime.now();
     
-    // Exact time match required. No early marking.
     final bool isTooEarly = now.isBefore(meetingDateTime);
-    // Attendance window closes 4 hours after start
     final bool isTooLate = now.isAfter(meetingDateTime.add(const Duration(hours: 4)));
     final bool isTimeValid = !isTooEarly && !isTooLate;
 
-    // Show button as long as they aren't present and a location exists.
     final bool showAttendanceButton = !isPresent && hasLocation;
 
-    // --- DYNAMIC UI LABELS ---
     String displayStatus;
     Color statusColor;
 
@@ -306,7 +323,7 @@ class _MemberMeetingsPageState extends State<MemberMeetingsPage> {
                         ));
                       },
                       icon: const Icon(Icons.map, size: 18),
-                      label: const Text("Map"), 
+                      label: const FittedBox(child: Text("Map")), 
                       style: OutlinedButton.styleFrom(foregroundColor: Colors.blueGrey),
                     ),
                   ),
@@ -338,9 +355,38 @@ class _MemberMeetingsPageState extends State<MemberMeetingsPage> {
                       icon: _isMarkingAttendance 
                         ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                         : Icon(isTimeValid ? Icons.location_on : Icons.lock_clock, color: Colors.white, size: 18),
-                      label: Text(
-                        isTooEarly ? "Not Started" : (isTooLate ? "Ended" : "Mark Attendance"), 
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)
+                      label: FittedBox(
+                        child: Text(
+                          isTooEarly ? "Not Started" : (isTooLate ? "Ended" : "Mark Attendance"), 
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                if (hasReport) ...[
+                  if (hasLocation || showAttendanceButton) const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      onPressed: () async {
+                        final uri = Uri.parse(meeting['report']);
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        } else {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Could not open the report document.")));
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.picture_as_pdf, color: Colors.white, size: 18),
+                      label: const FittedBox(
+                        child: Text("View Report", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13))
                       ),
                     ),
                   ),
