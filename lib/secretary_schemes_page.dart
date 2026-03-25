@@ -1,5 +1,8 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart'; // NEW: Added url_launcher
 
 // ==========================================
 // 1. MAIN SCHEMES MANAGEMENT PAGE
@@ -29,7 +32,7 @@ class SecretarySchemesPage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.teal.shade50, // Fixed: Capitalized Colors
+                color: Colors.teal.shade50,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -40,7 +43,7 @@ class SecretarySchemesPage extends StatelessWidget {
             const Divider(height: 32, color: Colors.black12),
             _buildOptionTile(
               icon: Icons.info_outline_rounded,
-              color: Colors.teal, // Fixed: Capitalized Colors
+              color: Colors.teal,
               title: "View Scheme Details & Apply",
               onTap: () {
                 Navigator.pop(context);
@@ -62,7 +65,25 @@ class SecretarySchemesPage extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (context) => SchemeRequestsPage(
-                      schemeId: scheme['id'],
+                      schemeId: scheme['id'].toString(),
+                      schemeTitle: scheme['title'],
+                    ),
+                  ),
+                );
+              },
+            ),
+            // NEW BUTTON: View Uploaded Reports
+            _buildOptionTile(
+              icon: Icons.picture_as_pdf_rounded,
+              color: Colors.blue,
+              title: "View Scheme Reports",
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ViewReportsPage(
+                      schemeId: scheme['id'].toString(),
                       schemeTitle: scheme['title'],
                     ),
                   ),
@@ -75,11 +96,13 @@ class SecretarySchemesPage extends StatelessWidget {
               title: "Add Scheme Report",
               onTap: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text("Add Report feature coming soon."),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+               
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => UploadReportDialog(
+                    schemeId: scheme['id'].toString(),
+                    aadharNumber: userData['aadhar_number']?.toString() ?? '',
                   ),
                 );
               },
@@ -161,7 +184,7 @@ class SecretarySchemesPage extends StatelessWidget {
                   contentPadding: const EdgeInsets.all(16),
                   leading: CircleAvatar(
                     radius: 24,
-                    backgroundColor: Colors.teal.shade50, // Fixed: Capitalized Colors
+                    backgroundColor: Colors.teal.shade50,
                     child: Icon(Icons.account_balance_rounded, color: Colors.teal.shade700),
                   ),
                   title: Text(scheme['title'] ?? 'Unnamed', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
@@ -182,7 +205,163 @@ class SecretarySchemesPage extends StatelessWidget {
 }
 
 // ==========================================
-// 2. SCHEME DETAILS PAGE
+// 2. UPLOAD REPORT DIALOG (WEB SAFE)
+// ==========================================
+class UploadReportDialog extends StatefulWidget {
+  final String schemeId;
+  final String aadharNumber;
+
+  const UploadReportDialog({
+    super.key,
+    required this.schemeId,
+    required this.aadharNumber,
+  });
+
+  @override
+  State<UploadReportDialog> createState() => _UploadReportDialogState();
+}
+
+class _UploadReportDialogState extends State<UploadReportDialog> {
+  Uint8List? _selectedFileBytes;
+  bool _isUploading = false;
+  String? _fileName;
+
+  Future<void> _pickFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+      withData: true,
+    );
+
+    if (result != null && result.files.single.bytes != null) {
+      setState(() {
+        _selectedFileBytes = result.files.single.bytes;
+        _fileName = result.files.single.name;
+      });
+    }
+  }
+
+  Future<void> _uploadAndSave() async {
+    if (_selectedFileBytes == null) return;
+   
+    if (widget.aadharNumber.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Error: Member Aadhar Number missing."), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    setState(() => _isUploading = true);
+
+    try {
+      final supabase = Supabase.instance.client;
+      final uniqueFileName = '${DateTime.now().millisecondsSinceEpoch}_$_fileName';
+      final storagePath = '${widget.schemeId}/$uniqueFileName';
+
+      await supabase.storage
+          .from('scheme_reports_pdfs')
+          .uploadBinary(
+            storagePath,
+            _selectedFileBytes!,
+            fileOptions: const FileOptions(contentType: 'application/pdf'),
+          );
+
+      final fileUrl = supabase.storage
+          .from('scheme_reports_pdfs')
+          .getPublicUrl(storagePath);
+
+      await supabase.from('scheme_reports').insert({
+        'scheme_id': widget.schemeId,
+        'created_by': widget.aadharNumber,
+        'report_file_path': fileUrl,
+      });
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(children: [Icon(Icons.check_circle, color: Colors.white), SizedBox(width: 10), Text("Report uploaded successfully!")]),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Upload failed: $e"), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Text("Upload Scheme Report", style: TextStyle(fontWeight: FontWeight.bold)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text("Select a PDF report to upload for this scheme.", style: TextStyle(color: Colors.grey)),
+          const SizedBox(height: 20),
+         
+          if (_selectedFileBytes != null)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(10)),
+              child: Row(
+                children: [
+                  const Icon(Icons.picture_as_pdf_rounded, color: Colors.redAccent),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(_fileName ?? '', style: const TextStyle(fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20, color: Colors.grey),
+                    onPressed: _isUploading ? null : () => setState(() => _selectedFileBytes = null),
+                  ),
+                ],
+              ),
+            )
+          else
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: _pickFile,
+              icon: const Icon(Icons.upload_file_rounded),
+              label: const Text("Choose PDF File"),
+            ),
+        ],
+      ),
+      actions: [
+        if (!_isUploading)
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+          ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.teal.shade700,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          onPressed: _selectedFileBytes == null || _isUploading ? null : _uploadAndSave,
+          child: _isUploading
+              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+              : const Text("Upload & Save"),
+        ),
+      ],
+    );
+  }
+}
+
+// ==========================================
+// 3. SCHEME DETAILS PAGE
 // ==========================================
 class SchemeDetailsPage extends StatefulWidget {
   final Map<String, dynamic> scheme;
@@ -341,7 +520,7 @@ class _SchemeDetailsPageState extends State<SchemeDetailsPage> {
 }
 
 // ==========================================
-// 3. SCHEME MEMBER REQUESTS PAGE
+// 4. SCHEME MEMBER REQUESTS PAGE
 // ==========================================
 class SchemeRequestsPage extends StatefulWidget {
   final String schemeId;
@@ -523,13 +702,163 @@ class _SchemeRequestsPageState extends State<SchemeRequestsPage> {
       bgColor = Colors.red.shade50;
       textColor = Colors.red.shade800;
     } else if (s.contains('pending at ads')) {
-      bgColor = Colors.teal.shade50; // Fixed: Capitalized Colors
-      textColor = Colors.teal.shade800; // Fixed: Capitalized Colors
+      bgColor = Colors.teal.shade50;
+      textColor = Colors.teal.shade800;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(20), border: Border.all(color: textColor.withOpacity(0.3))),
       child: Text(status, style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 11)),
+    );
+  }
+}
+
+// ==========================================
+// 5. VIEW UPLOADED REPORTS PAGE
+// ==========================================
+class ViewReportsPage extends StatelessWidget {
+  final String schemeId;
+  final String schemeTitle;
+
+  const ViewReportsPage({
+    super.key,
+    required this.schemeId,
+    required this.schemeTitle,
+  });
+
+  Future<void> _launchPdfUrl(BuildContext context, String url) async {
+    try {
+      final Uri uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication); // Opens browser or PDF viewer
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Could not open the document.")));
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error opening document: $e")));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        title: const Text("Uploaded Reports", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18)),
+        backgroundColor: Colors.teal.shade700,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            color: Colors.white,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Scheme Name", style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(schemeTitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+              ],
+            ),
+          ),
+          const Divider(height: 1, thickness: 1),
+          Expanded(
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: Supabase.instance.client
+                  .from('scheme_reports')
+                  .stream(primaryKey: ['id'])
+                  .eq('scheme_id', schemeId)
+                  .order('created_at', ascending: false),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
+
+                final reports = snapshot.data ?? [];
+                if (reports.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.picture_as_pdf_rounded, size: 80, color: Colors.grey.shade300),
+                        const SizedBox(height: 16),
+                        Text("No reports uploaded yet.", style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: reports.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final report = reports[index];
+                    final String rawDate = report['created_at'].toString();
+                    final String formattedDate = rawDate.split('T').first;
+                    final String fileUrl = report['report_file_path'] ?? '';
+                    final String uploaderAadhar = report['created_by']?.toString() ?? 'Unknown';
+
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.shade200),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 4))],
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.red.shade50,
+                          child: Icon(Icons.picture_as_pdf_rounded, color: Colors.red.shade400),
+                        ),
+                        title: const Text("Document Report", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(children: [
+                                Icon(Icons.calendar_today_rounded, size: 14, color: Colors.grey.shade500),
+                                const SizedBox(width: 6),
+                                Text(formattedDate, style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+                              ]),
+                              const SizedBox(height: 4),
+                              Row(children: [
+                                Icon(Icons.person_rounded, size: 14, color: Colors.grey.shade500),
+                                const SizedBox(width: 6),
+                                Text("Uploader: $uploaderAadhar", style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+                              ]),
+                            ],
+                          ),
+                        ),
+                        trailing: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.teal.shade50,
+                            foregroundColor: Colors.teal.shade700,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onPressed: () => _launchPdfUrl(context, fileUrl),
+                          icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                          label: const Text("View"),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
