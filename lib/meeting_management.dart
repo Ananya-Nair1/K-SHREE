@@ -17,6 +17,68 @@ class MeetingManagementPage extends StatefulWidget {
 class _MeetingManagementPageState extends State<MeetingManagementPage> {
   final supabase = Supabase.instance.client;
 
+  // ==========================================
+  // NEW: CANCEL MEETING FEATURE
+  // ==========================================
+  Future<void> _cancelMeeting(String meetId) async {
+    // 1. Show a confirmation dialog first
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Cancel Meeting?", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+        content: const Text("Are you sure you want to completely cancel and remove this scheduled meeting?"),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false), 
+            child: const Text("No, Keep it", style: TextStyle(color: Colors.grey))
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
+            ),
+            onPressed: () => Navigator.pop(context, true), 
+            child: const Text("Yes, Cancel", style: TextStyle(color: Colors.white))
+          ),
+        ],
+      )
+    );
+
+    // If they clicked 'No' or dismissed the dialog, stop here
+    if (confirm != true) return;
+
+    try {
+      // 2. Show a quick loading spinner
+      showDialog(
+        context: context, 
+        barrierDismissible: false, 
+        builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.redAccent))
+      );
+
+      // 3. Delete the meeting from the Supabase database
+      await supabase.from('meetings').delete().eq('meet_id', meetId);
+      
+      // 4. Close spinner and show success message
+      if (mounted) {
+        Navigator.pop(context); 
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Meeting successfully canceled."), 
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          )
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); 
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error canceling meeting: $e")));
+      }
+    }
+  }
+  // ==========================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -62,7 +124,19 @@ class _MeetingManagementPageState extends State<MeetingManagementPage> {
                   )),
                   title: Text("${m['meeting_date']} at ${m['meeting_time']}", style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text("Venue: ${m['venue']}\nStatus: ${m['status']}"),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.indigo),
+                  
+                  // ==========================================
+                  // NEW: THE UPDATED TRAILING WIDGET
+                  // Shows 'Cancel' icon if SCHEDULED, otherwise shows normal arrow
+                  // ==========================================
+                  trailing: m['status'] == 'SCHEDULED'
+                      ? IconButton(
+                          icon: const Icon(Icons.cancel, color: Colors.redAccent, size: 28),
+                          tooltip: 'Cancel this meeting',
+                          onPressed: () => _cancelMeeting(m['meet_id'].toString()),
+                        )
+                      : const Icon(Icons.chevron_right, color: Colors.indigo),
+                  // ==========================================
                 ),
               );
             },

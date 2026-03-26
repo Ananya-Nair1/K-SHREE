@@ -150,7 +150,10 @@ class _ADSMemberMeetingsPageState extends State<ADSMemberMeetingsPage> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => ADSMeetingDetailsPage(meetingData: meet),
+              builder: (context) => ADSMeetingDetailsPage(
+                meetingData: meet,
+                adsData: widget.userData, // <--- FIXED: Passed adsData here!
+              ),
             ),
           );
         },

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart'; // NEW: Import url_launcher
 
 class SecretaryReportsPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -54,6 +55,24 @@ class _SecretaryReportsPageState extends State<SecretaryReportsPage> {
       }
     } finally {
       if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  // NEW: Function to launch the PDF URL
+  Future<void> _viewPdf(String url) async {
+    final Uri uri = Uri.parse(url);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Could not open the document.")));
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error opening document: $e")));
+      }
     }
   }
 
@@ -113,14 +132,30 @@ class _SecretaryReportsPageState extends State<SecretaryReportsPage> {
                       ),
                       title: Text(meeting['reason'] ?? "Meeting", style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Text("Date: ${meeting['meeting_date']}\nVenue: ${meeting['venue']}"),
-                      trailing: ElevatedButton.icon(
-                        onPressed: _isUploading ? null : () => _uploadPdf(meetId),
-                        icon: Icon(hasReport ? Icons.edit : Icons.upload_file, size: 18),
-                        label: Text(hasReport ? "Edit" : "Add PDF"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: hasReport ? Colors.orange : Colors.teal,
-                          foregroundColor: Colors.white,
-                        ),
+                      
+                      // NEW: Wrap trailing buttons in a Row to show both View and Edit
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (hasReport) ...[
+                            TextButton.icon(
+                              onPressed: () => _viewPdf(reportUrl),
+                              icon: const Icon(Icons.visibility, color: Colors.blue, size: 18),
+                              label: const Text("View", style: TextStyle(color: Colors.blue)),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          ElevatedButton.icon(
+                            onPressed: _isUploading ? null : () => _uploadPdf(meetId),
+                            icon: Icon(hasReport ? Icons.edit : Icons.upload_file, size: 18),
+                            label: Text(hasReport ? "Edit" : "Add PDF"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: hasReport ? Colors.orange : Colors.teal,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   );
@@ -133,7 +168,6 @@ class _SecretaryReportsPageState extends State<SecretaryReportsPage> {
               color: Colors.black.withOpacity(0.3),
               child: const Center(
                 child: Card(
-                  // FIXED: Moved Padding here inside the Card
                   child: Padding(
                     padding: EdgeInsets.all(20),
                     child: Column(

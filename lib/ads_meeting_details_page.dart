@@ -1,16 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'ads_mark_attendance_screen.dart'; // Make sure this import matches your file name!
 
-class ADSMeetingDetailsPage extends StatelessWidget {
+class ADSMeetingDetailsPage extends StatefulWidget {
   final Map<String, dynamic> meetingData;
+  final Map<String, dynamic> adsData; // NEW: Added to pass to the attendance screen
 
-  const ADSMeetingDetailsPage({super.key, required this.meetingData});
+  const ADSMeetingDetailsPage({
+    super.key, 
+    required this.meetingData,
+    required this.adsData, // NEW
+  });
 
+  @override
+  State<ADSMeetingDetailsPage> createState() => _ADSMeetingDetailsPageState();
+}
+
+class _ADSMeetingDetailsPageState extends State<ADSMeetingDetailsPage> {
   @override
   Widget build(BuildContext context) {
     final supabase = Supabase.instance.client;
-    final String meetId = meetingData['meet_id'].toString();
+    final String meetId = widget.meetingData['meet_id'].toString();
     final Color primaryColor = const Color(0xFF2B6CB0); 
+    
+    // Check if meeting is already held to hide the attendance button
+    final bool isHeld = widget.meetingData['status'] == 'HELD';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -32,19 +46,52 @@ class ADSMeetingDetailsPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "${meetingData['meeting_date']} at ${meetingData['meeting_time']}",
+                      "${widget.meetingData['meeting_date']} at ${widget.meetingData['meeting_time']}",
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const Divider(height: 24),
-                    _buildInfoRow(Icons.location_on, "Venue: ${meetingData['venue']}"),
+                    _buildInfoRow(Icons.location_on, "Venue: ${widget.meetingData['venue']}"),
                     const SizedBox(height: 8),
-                    _buildInfoRow(Icons.info_outline, "Status: ${meetingData['status']}"),
+                    _buildInfoRow(Icons.info_outline, "Status: ${widget.meetingData['status']}"),
                     const SizedBox(height: 8),
-                    _buildInfoRow(Icons.description, "Agenda: ${meetingData['reason'] ?? 'No agenda'}"),
+                    _buildInfoRow(Icons.description, "Agenda: ${widget.meetingData['reason'] ?? 'No agenda'}"),
                   ],
                 ),
               ),
             ),
+            
+            // NEW: Button to navigate to Attendance Hub
+            if (!isHeld) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green.shade600,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.how_to_reg, size: 22),
+                  label: const Text("Open Attendance Hub", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ADSMarkAttendanceScreen(
+                          meetId: meetId,
+                          adsData: widget.adsData,
+                        ),
+                      ),
+                    ).then((_) {
+                      // When we pop back from the Attendance Screen, refresh this page
+                      // so the new attendance records show up immediately.
+                      setState(() {});
+                    });
+                  },
+                ),
+              ),
+            ],
             
             const SizedBox(height: 24),
             const Text("Attendance Record", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),

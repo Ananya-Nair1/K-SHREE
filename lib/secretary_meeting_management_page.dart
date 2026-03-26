@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
-import 'mark_attendance_screen.dart';
+// import 'mark_attendance_screen.dart'; // Uncomment if needed
 
 class ScheduleMeetingPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -84,6 +84,34 @@ class _ScheduleMeetingPageState extends State<ScheduleMeetingPage> {
     setState(() => _isLoading = true);
 
     try {
+      final formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+      final formattedTime = "${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}:00";
+
+      // --- NEW: STRICT CONFLICT CHECK ---
+      // Ask the database if this unit already has a meeting at this exact date and time
+      final existingMeetings = await supabase
+          .from('meetings')
+          .select('meet_id')
+          .eq('unit_name', widget.userData['unit_number'].toString())
+          .eq('meeting_date', formattedDate)
+          .eq('meeting_time', formattedTime);
+
+      if (existingMeetings.isNotEmpty) {
+        // A conflict was found! Stop the process and alert the user.
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Conflict! A meeting is already scheduled at this exact date and time."),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+            )
+          );
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+      // ----------------------------------
+
       double? finalLat;
       double? finalLon;
       String finalVenueName = _selectedVenue!;
@@ -107,9 +135,6 @@ class _ScheduleMeetingPageState extends State<ScheduleMeetingPage> {
         finalLon = venueData['longitude'];
       }
 
-      final formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate!);
-      final formattedTime = "${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}:00";
-
       // 1. Schedule the meeting
       await supabase.from('meetings').insert({
         'panchayat': widget.userData['panchayat']?.toString() ?? '',
@@ -128,14 +153,13 @@ class _ScheduleMeetingPageState extends State<ScheduleMeetingPage> {
 
       // 2. Auto-Send Notification to unit_notifications table
       try {
-        // --- NEW: Convert Ward to Integer safely ---
         int? wardInt = int.tryParse(widget.userData['ward']?.toString() ?? widget.userData['ward_number']?.toString() ?? '');
 
         await supabase.from('unit_notifications').insert({
           'title': '📅 New Meeting Scheduled',
           'message': 'A new NHG meeting is set for $formattedDate at ${_selectedTime!.format(context)}.\nVenue: $finalVenueName\nAgenda: ${_reasonController.text}',
           'unit_number': widget.userData['unit_number'].toString(),
-          'ward': wardInt, // <--- FIXED: Now safely passing an integer instead of a string!
+          'ward': wardInt,
           'panchayat': widget.userData['panchayat']?.toString() ?? '',
           'created_at': DateTime.now().toIso8601String(), 
           'target_audience': 'All Members',              
@@ -159,7 +183,7 @@ class _ScheduleMeetingPageState extends State<ScheduleMeetingPage> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  } // <-- End of _scheduleMeeting function
+  }
 
   Future<Position> _getCurrentLocation() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -173,6 +197,102 @@ class _ScheduleMeetingPageState extends State<ScheduleMeetingPage> {
     return await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
   }
 
+  // ==========================================
+  // CANCEL MEETING FEATURE
+  // ==========================================
+  Future<void> _showCancelMeetingDialog() async {
+    // Show a loading spinner while fetching this unit's meetings
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.white)),
+    );
+
+    try {
+      final unit = widget.userData['unit_number'].toString();
+      final meetings = await supabase
+          .from('meetings')
+          .select('meet_id, meeting_date, meeting_time, reason')
+          .eq('unit_name', unit)
+          .eq('status', 'SCHEDULED') // Only allow canceling scheduled meetings
+          .order('meeting_date', ascending: true);
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close the loading spinner
+
+      if (meetings.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("You have no scheduled meetings to cancel."))
+        );
+        return;
+      }
+
+      // Show the list of meetings to cancel
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text("Cancel a Meeting", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: meetings.length,
+                itemBuilder: (context, index) {
+                  final meet = meetings[index];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(meet['reason'] ?? 'Meeting', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text("${meet['meeting_date']} at ${meet['meeting_time']}"),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.cancel, color: Colors.red),
+                      tooltip: "Cancel this meeting",
+                      onPressed: () async {
+                        Navigator.pop(context); // Close the dialog
+                        await _cancelMeeting(meet['meet_id'].toString());
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context), 
+                child: const Text("Go Back", style: TextStyle(color: Colors.grey))
+              )
+            ],
+          );
+        }
+      );
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error fetching meetings: $e")));
+      }
+    }
+  }
+
+  Future<void> _cancelMeeting(String meetId) async {
+    try {
+      // Deletes the meeting from the database entirely
+      await supabase.from('meetings').delete().eq('meet_id', meetId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Meeting successfully canceled."),
+            backgroundColor: Colors.redAccent,
+          )
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error canceling meeting: $e")));
+      }
+    }
+  }
+  // ==========================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -181,6 +301,7 @@ class _ScheduleMeetingPageState extends State<ScheduleMeetingPage> {
         title: const Text("Schedule Meeting", style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.indigo,
         iconTheme: const IconThemeData(color: Colors.white),
+        // Removed the tiny actions icon that was hiding up here
       ),
       body: _savedVenues.isEmpty 
         ? const Center(child: CircularProgressIndicator(color: Colors.indigo))
@@ -280,6 +401,8 @@ class _ScheduleMeetingPageState extends State<ScheduleMeetingPage> {
                 ],
               ),
               const SizedBox(height: 40),
+              
+              // === THE SCHEDULE BUTTON ===
               SizedBox(
                 width: double.infinity,
                 height: 55,
@@ -291,6 +414,25 @@ class _ScheduleMeetingPageState extends State<ScheduleMeetingPage> {
                     : const Text("Schedule Meeting", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
+
+              const SizedBox(height: 16), // Space between the buttons
+
+              // === NEW: BIG CANCEL BUTTON AT THE BOTTOM ===
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.redAccent,
+                    side: const BorderSide(color: Colors.redAccent),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                  ),
+                  icon: const Icon(Icons.cancel_presentation),
+                  label: const Text("Cancel a Scheduled Meeting", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  onPressed: _showCancelMeetingDialog,
+                ),
+              ),
+              
             ],
           ),
         ),

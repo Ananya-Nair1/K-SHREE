@@ -91,7 +91,7 @@ class _ApplyLoanTabState extends State<_ApplyLoanTab> {
         'principal_amount': principal,
         'outstanding_amount': principal,
         'emi_amount': emi,
-        'status': 'Pending at NHG', 
+        'status': 'Pending at ADS', 
         'applied_date': DateTime.now().toIso8601String(),
         'remarks': _remarksController.text,
       });
