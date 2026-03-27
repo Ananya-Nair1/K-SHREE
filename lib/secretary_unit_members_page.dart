@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -7,9 +6,49 @@ class UnitMembersPage extends StatelessWidget {
   final Map<String, dynamic> userData;
   const UnitMembersPage({super.key, required this.userData});
 
+  // --- ATTENDANCE CALCULATION LOGIC ---
+  Future<double> _calculateAttendance(String aadharNumber, String unitNumber) async {
+    try {
+      final supabase = Supabase.instance.client;
+      debugPrint("--- ATTENDANCE CHECK START ---");
+      debugPrint("Checking Aadhar: $aadharNumber for Unit: $unitNumber");
+
+      // 1. Get total HELD meetings for this unit
+      final meetingsData = await supabase
+          .from('meetings')
+          .select('meet_id')
+          .eq('unit_name', unitNumber)
+          .eq('status', 'HELD');
+
+      if (meetingsData.isEmpty) {
+        debugPrint("Result: No HELD meetings found. Attendance is 0%.");
+        return 0.0; 
+      }
+
+      int totalMeetings = meetingsData.length;
+
+      // 2. Get attendance records for this member
+      final attendanceData = await supabase
+          .from('attendance')
+          .select('status')
+          .eq('aadhar_number', aadharNumber);
+
+      // 3. Count 'present' status
+      int presentCount = attendanceData.where((record) {
+        final status = record['status']?.toString().trim().toLowerCase() ?? '';
+        return status == 'present';
+      }).length;
+
+      debugPrint("Result: Present $presentCount out of $totalMeetings meetings.");
+      return (presentCount / totalMeetings) * 100;
+    } catch (e) {
+      debugPrint("Database Error fetching attendance: $e");
+      return 0.0;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Extract variables
     final String panchayat = userData['panchayat']?.toString() ?? '';
     final String ward = userData['ward']?.toString() ?? '';
     final String unitNumber = userData['unit_number']?.toString() ?? '';
@@ -22,7 +61,6 @@ class UnitMembersPage extends StatelessWidget {
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
-        // FAIL-SAFE METHOD: Apply filters to select(), then convert to stream
         stream: Supabase.instance.client
             .from('Registered_Members')
             .select()
@@ -30,7 +68,7 @@ class UnitMembersPage extends StatelessWidget {
             .eq('ward', ward)
             .eq('unit_number', unitNumber)
             .order('full_name', ascending: true)
-            .asStream() // This converts the Postgrest query into a Stream
+            .asStream() 
             .map((data) => List<Map<String, dynamic>>.from(data)), 
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -61,7 +99,7 @@ class UnitMembersPage extends StatelessWidget {
                   title: Text(member['full_name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text("Aadhar: ${member['aadhar_number']}"),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _showMemberDetails(context, member),
+                  onTap: () => _showMemberDetails(context, member, unitNumber),
                 ),
               );
             },
@@ -71,7 +109,7 @@ class UnitMembersPage extends StatelessWidget {
     );
   }
 
-  void _showMemberDetails(BuildContext context, Map<String, dynamic> member) {
+  void _showMemberDetails(BuildContext context, Map<String, dynamic> member, String unitNumber) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -86,7 +124,74 @@ class UnitMembersPage extends StatelessWidget {
           children: [
             Center(child: Text(member['full_name'] ?? '', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold))),
             const Divider(),
-            _infoRow(Icons.phone, "Phone", member['phone_number']),
+            
+            // ==========================================
+            // THE ATTENDANCE WIDGET
+            // ==========================================
+            FutureBuilder<double>(
+              future: _calculateAttendance(member['aadhar_number'].toString(), unitNumber),
+              builder: (context, snapshot) {
+                // 1. Show Loading State
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Container(
+                    margin: const EdgeInsets.symmetric(vertical: 10),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.indigo)),
+                        SizedBox(width: 15),
+                        Text("Calculating Attendance...", style: TextStyle(color: Colors.indigo, fontWeight: FontWeight.bold))
+                      ],
+                    ),
+                  );
+                }
+
+                // 2. Show Error State (if any)
+                if (snapshot.hasError) {
+                  return Container(
+                    margin: const EdgeInsets.symmetric(vertical: 10),
+                    padding: const EdgeInsets.all(16),
+                    color: Colors.red.shade50,
+                    child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.red)),
+                  );
+                }
+
+                // 3. Show Final Percentage
+                final double percentage = snapshot.data ?? 0.0;
+                final Color pctColor = percentage >= 75 ? Colors.green : (percentage >= 50 ? Colors.orange : Colors.red);
+
+                return Container(
+                  margin: const EdgeInsets.symmetric(vertical: 10),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: pctColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: pctColor.withOpacity(0.5), width: 2), // Made border thicker so it's obvious
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.analytics, color: pctColor),
+                          const SizedBox(width: 8),
+                          const Text("Overall Attendance", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        ],
+                      ),
+                      Text(
+                        "${percentage.toStringAsFixed(1)}%", 
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: pctColor) // Made text bigger
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            // ==========================================
+
+            _infoRow(Icons.phone, "PHONE", member['phone_number']),
             _infoRow(Icons.cake, "DOB", member['dob']),
             _infoRow(Icons.bloodtype, "Blood", member['blood_group']),
             _infoRow(Icons.home, "Address", member['address']),
@@ -101,7 +206,7 @@ class UnitMembersPage extends StatelessWidget {
               },
               icon: const Icon(Icons.call),
               label: const Text("Call Member"),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
             )
           ],
         ),
